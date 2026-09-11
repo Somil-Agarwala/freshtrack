@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  The entire dark theme lives here, as RGB triplets consumed by
+  tailwind.config.ts. Nothing else in the codebase hardcodes a slate or
+  zinc value, so adjusting the palette means editing this block only.
+
+  The base is a cool near-black rather than pure #000: pure black against
+  bright text causes halation on OLED screens and makes long sessions of
+  data entry harder on the eyes. Surfaces step up in lightness as they
+  come forward (base -> surface -> elevated -> raised).
+*/
+:root {
+  color-scheme: dark;
+
+  --c-base: 8 10 15;
+  --c-surface: 16 20 27;
+  --c-elevated: 23 29 38;
+  --c-raised: 32 39 50;
+
+  --c-line: 31 38 49;
+  --c-line-strong: 51 61 75;
+
+  --c-ink: 233 238 245;
+  --c-ink-dim: 150 161 178;
+  --c-ink-faint: 105 117 135;
+
+  --c-accent: 45 212 191;
+  --c-accent-hi: 94 234 212;
+  --c-accent-ink: 4 27 26;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-base text-ink;
+  }
+  /* Native form controls default to a light UA palette; without this the
+     date picker and select arrows render as light chips on dark fields. */
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-line-strong;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+}

@@ -1,0 +1,14 @@
+import { PageHeader } from "@/components/ui/page-header";
+import { ProductsTable } from "@/components/master-data/products-table";
+
+export default function ProductsPage() {
+  return (
+    <div>
+      <PageHeader
+        title="Products"
+        description="MRP drives how bags are packed, cost price drives loss value"
+      />
+      <ProductsTable />
+    </div>
+  );
+}
