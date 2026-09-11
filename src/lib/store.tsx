@@ -34,7 +34,7 @@ interface StoreValue {
   records: DamageRecord[];
 
   addProduct: (product: Omit<Product, "id">) => Product;
-  addCollection: (input: { distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }) => CollectionBag;
+  addCollections: (input: { distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => CollectionBag[];
   deleteCollections: (ids: string[]) => void;
   saveCount: (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => void;
   packPendingLines: () => { bagCount: number; pieceCount: number };
