@@ -62,25 +62,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
-  const addCollection = useCallback(
-    (input: { distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }) => {
-      // Built outside the updater: assigning inside one and reading it
-      // afterwards is not reliable, since React may defer or re-run it.
-      const created: CollectionBag = {
-        id: `c-${Date.now()}`,
-        bagNumber: nextCollectionNumber(collections.length, input.collectedDate),
+    const addCollections = useCallback(
+    (input: { distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => {
+      // One pickup usually means several bags from the same party, so the
+      // whole batch is numbered in a single pass. Numbering is derived from
+      // the current count plus the index, which keeps the sequence
+      // gap-free across the batch instead of every bag racing for the
+      // same "next" number.
+      const safeCount = Math.max(1, Math.floor(bagCount));
+      const stamp = Date.now();
+
+      const created: CollectionBag[] = Array.from({ length: safeCount }, (_, index) => ({
+        // Index is part of the id because Date.now() returns the same
+        // value for every bag created inside one loop.
+        id: `c-${stamp}-${index}`,
+        bagNumber: nextCollectionNumber(collections.length + index, input.collectedDate),
         distributorId: input.distributorId,
         collectedDate: input.collectedDate,
         status: "uncounted",
         estimatedPieces: input.estimatedPieces,
         notes: input.notes,
-      };
-      setCollections((prev) => [created, ...prev]);
+      }));
+
+      // Reversed so the highest number ends up at the top of the list,
+      // matching the newest-first order of the rest of the page.
+      setCollections((prev) => [...created.slice().reverse(), ...prev]);
       return created;
     },
     [collections.length]
   );
-
   const deleteCollections = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
     setCollections((prev) => prev.filter((c) => !idSet.has(c.id)));
@@ -192,7 +202,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dispatches,
       records,
       addProduct,
-      addCollection,
+      addCollections,
       deleteCollections,
       saveCount,
       packPendingLines,
@@ -211,7 +221,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dispatches,
       records,
       addProduct,
-      addCollection,
+      addCollections,
       deleteCollections,
       saveCount,
       packPendingLines,
