@@ -7,45 +7,78 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { nextCollectionNumber } from "@/lib/bag-packing";
 import { distributors } from "@/lib/mock-data";
 import { useStore } from "@/lib/store";
-import { today } from "@/lib/utils";
+import { pluralize, today } from "@/lib/utils";
 
-// Logging a collection is the fast path at pickup: pick the party, and
-// everything else is optional. The bag number is generated, not typed,
-// so two people logging bags cannot collide on numbering.
-export function NewCollectionDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (bagNumber: string) => void }) {
-  const { addCollection } = useStore();
+const QUICK_COUNTS = [1, 2, 5, 10];
+
+// Logging a pickup is the fast path: pick the party, say how many bags
+// came back, done. A pickup is rarely a single bag, so the count sits
+// right next to the party rather than being buried as an advanced option.
+export function NewCollectionDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (message: string) => void;
+}) {
+  const { addCollections, collections } = useStore();
   const [distributorId, setDistributorId] = useState("");
   const [collectedDate, setCollectedDate] = useState(today());
+  const [bagCount, setBagCount] = useState("1");
   const [estimatedPieces, setEstimatedPieces] = useState("");
   const [notes, setNotes] = useState("");
 
   if (!open) return null;
 
-  function handleCreate() {
-    if (!distributorId) return;
-    const created = addCollection({
-      distributorId,
-      collectedDate,
-      estimatedPieces: estimatedPieces === "" ? undefined : Number(estimatedPieces),
-      notes: notes.trim() || undefined,
-    });
-    onCreated(created.bagNumber);
+  const parsedCount = Math.max(1, Math.floor(Number(bagCount) || 1));
+
+  // Preview the exact numbers before anything is created, so nobody has
+  // to generate 20 bags to find out what they will be called.
+  const firstNumber = nextCollectionNumber(collections.length, collectedDate);
+  const lastNumber = nextCollectionNumber(collections.length + parsedCount - 1, collectedDate);
+
+  function reset() {
     setDistributorId("");
     setCollectedDate(today());
+    setBagCount("1");
     setEstimatedPieces("");
     setNotes("");
+  }
+
+  function handleCreate() {
+    if (!distributorId) return;
+    const created = addCollections(
+      {
+        distributorId,
+        collectedDate,
+        estimatedPieces: estimatedPieces === "" ? undefined : Number(estimatedPieces),
+        notes: notes.trim() || undefined,
+      },
+      parsedCount
+    );
+
+    const message =
+      created.length === 1
+        ? `${created[0].bagNumber} created and marked as not counted.`
+        : `${created.length} bags created, ${created[0].bagNumber} to ${created[created.length - 1].bagNumber}.`;
+
+    onCreated(message);
+    reset();
     onClose();
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
-      <div className="w-full max-w-lg rounded-t-xl border border-line-strong bg-surface sm:rounded-xl">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-xl border border-line-strong bg-surface sm:rounded-xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-ink">Log a collection</h2>
-            <p className="mt-0.5 text-sm text-ink-dim">Record the bag now, count it later.</p>
+            <p className="mt-0.5 text-sm text-ink-dim">Record the bags now, count them later.</p>
           </div>
           <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-faint hover:bg-elevated" aria-label="Close">
             <X className="h-5 w-5" />
@@ -62,13 +95,47 @@ export function NewCollectionDialog({ open, onClose, onCreated }: { open: boolea
               ))}
             </Select>
           </div>
+
+          <div>
+            <Label htmlFor="bagCount">How many bags came back?</Label>
+            <div className="flex gap-2">
+              <Input
+                id="bagCount"
+                type="number"
+                min={1}
+                value={bagCount}
+                onChange={(e) => setBagCount(e.target.value)}
+                className="w-28"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_COUNTS.map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => setBagCount(String(count))}
+                    className={`h-10 min-w-[44px] rounded-lg px-3 text-sm font-medium transition-colors ${
+                      parsedCount === count ? "bg-accent text-accent-ink" : "bg-elevated text-ink-dim hover:bg-raised hover:text-ink"
+                    }`}
+                  >
+                    {count}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-ink-faint">
+              {parsedCount === 1
+                ? `This will create ${firstNumber}.`
+                : `This will create ${parsedCount} separate bags, ${firstNumber} to ${lastNumber}, each countable on its own.`}
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="collectedDate">Collected on</Label>
               <Input id="collectedDate" type="date" value={collectedDate} onChange={(e) => setCollectedDate(e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="estimatedPieces">Rough piece count</Label>
+              <Label htmlFor="estimatedPieces">Rough pieces per bag</Label>
               <Input
                 id="estimatedPieces"
                 type="number"
@@ -79,15 +146,23 @@ export function NewCollectionDialog({ open, onClose, onCreated }: { open: boolea
               />
             </div>
           </div>
+
           <div>
             <Label htmlFor="collectionNotes">Notes</Label>
-            <Textarea id="collectionNotes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth noting at pickup" />
+            <Textarea
+              id="collectionNotes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={parsedCount > 1 ? "Applied to every bag in this pickup" : "Anything worth noting at pickup"}
+            />
           </div>
         </div>
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!distributorId}>Generate bag number</Button>
+          <Button onClick={handleCreate} disabled={!distributorId}>
+            Generate {parsedCount} {pluralize(parsedCount, "bag")}
+          </Button>
         </div>
       </div>
     </div>
