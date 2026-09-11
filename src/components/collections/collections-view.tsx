@@ -260,7 +260,7 @@ export function CollectionsView() {
       <NewCollectionDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onCreated={(bagNumber) => flash(`${bagNumber} created and marked as not counted.`)}
+                onCreated={(message) => flash(message)}
       />
     </div>
   );
