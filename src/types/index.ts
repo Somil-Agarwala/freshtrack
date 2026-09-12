@@ -19,8 +19,23 @@ export type ResolutionStatus =
 
 export type UserRole = "admin" | "manager" | "data_entry" | "viewer";
 
+/**
+ * A principal / brand whose damaged goods you claim against. Each company
+ * settles its own claims at its own factory, so a bag and a dispatch
+ * always belong to exactly one company -- they are never mixed.
+ */
+export interface Company {
+  id: string;
+  name: string;
+  /** Short code used to prefix bag numbers, e.g. CAD-M10-2026-0008. */
+  code: string;
+  claimContact?: string;
+  isActive: boolean;
+}
+
 export interface Product {
   id: string;
+  companyId: string;
   sku: string;
   name: string;
   category: string;
@@ -44,6 +59,7 @@ export interface Distributor {
 /** A free-standing damage/expiry record, logged against your own inventory. */
 export interface DamageRecord {
   id: string;
+  companyId: string;
   date: string;
   source: SourceType;
   distributorId?: string;
@@ -74,6 +90,8 @@ export type CollectionStatus = "uncounted" | "counted" | "packed";
 export interface CollectionBag {
   id: string;
   bagNumber: string;
+  /** Whose goods these are. One bag never mixes companies. */
+  companyId: string;
   distributorId: string;
   collectedDate: string;
   status: CollectionStatus;
@@ -87,6 +105,8 @@ export interface CollectionBag {
 export interface CountLine {
   id: string;
   collectionId: string;
+  /** Copied from the parent bag so packing can group without a join. */
+  companyId: string;
   productId: string;
   /** Snapshotted at count time so later MRP changes cannot rewrite history. */
   mrp: number;
@@ -105,6 +125,7 @@ export type SortedBagStatus = "ready" | "dispatched";
 export interface SortedBag {
   id: string;
   bagNumber: string;
+  companyId: string;
   mrp: number;
   pieceCount: number;
   /** False when this is the trailing part-filled bag for its MRP tier. */
@@ -122,6 +143,8 @@ export type DispatchStatus = "sent" | "under_review" | "partially_settled" | "se
 export interface Dispatch {
   id: string;
   dispatchNumber: string;
+  /** A dispatch goes to one company's factory, so it is single-company. */
+  companyId: string;
   sentDate: string;
   bagCount: number;
   pieceCount: number;

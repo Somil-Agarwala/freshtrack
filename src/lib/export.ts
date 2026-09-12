@@ -8,6 +8,7 @@ import {
 import { formatDate } from "./utils";
 import type {
   CollectionBag,
+  Company,
   CountLine,
   DamageRecord,
   Dispatch,
@@ -34,6 +35,7 @@ interface BagExportParams {
   countLines: CountLine[];
   distributors: Distributor[];
   products: Product[];
+  companies: Company[];
   filterLabel?: string;
 }
 
@@ -43,7 +45,7 @@ interface BagExportParams {
  * total. Sheet 3 traces every bag back to the party it came from, which
  * is what settles disputes about whose stock was in which bag.
  */
-export function exportSortedBags({ bags, collections, countLines, distributors, products, filterLabel }: BagExportParams) {
+export function exportSortedBags({ bags, collections, countLines, distributors, products, companies, filterLabel }: BagExportParams) {
   const manifest: Row[] = bags.map((bag) => {
     const parties = bag.sourceCollectionIds
       .map((id) => collections.find((c) => c.id === id))
@@ -51,6 +53,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       .filter((name): name is string => Boolean(name));
     return {
       "Bag Number": bag.bagNumber,
+      Company: companies.find((c) => c.id === bag.companyId)?.name ?? "",
       "MRP (INR)": bag.mrp,
       Pieces: bag.pieceCount,
       "Claim Value (INR)": bag.pieceCount * bag.mrp,
@@ -61,25 +64,29 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
     };
   });
 
-  const byMrp = new Map<number, { bags: number; pieces: number }>();
+  // Grouped by company then MRP, because each company is a separate claim.
+  const byTier = new Map<string, { companyId: string; mrp: number; bags: number; pieces: number }>();
   bags.forEach((bag) => {
-    const entry = byMrp.get(bag.mrp) ?? { bags: 0, pieces: 0 };
+    const key = `${bag.companyId}::${bag.mrp}`;
+    const entry = byTier.get(key) ?? { companyId: bag.companyId, mrp: bag.mrp, bags: 0, pieces: 0 };
     entry.bags += 1;
     entry.pieces += bag.pieceCount;
-    byMrp.set(bag.mrp, entry);
+    byTier.set(key, entry);
   });
 
-  const summary: Row[] = Array.from(byMrp.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([mrp, entry]) => ({
-      "MRP (INR)": mrp,
+  const summary: Row[] = Array.from(byTier.values())
+    .sort((a, b) => a.companyId.localeCompare(b.companyId) || a.mrp - b.mrp)
+    .map((entry) => ({
+      Company: companies.find((c) => c.id === entry.companyId)?.name ?? "",
+      "MRP (INR)": entry.mrp,
       Bags: entry.bags,
       Pieces: entry.pieces,
-      "Claim Value (INR)": entry.pieces * mrp,
+      "Claim Value (INR)": entry.pieces * entry.mrp,
     }));
 
   summary.push({
-    "MRP (INR)": "TOTAL",
+    Company: "TOTAL",
+    "MRP (INR)": "",
     Bags: bags.length,
     Pieces: bags.reduce((sum, b) => sum + b.pieceCount, 0),
     "Claim Value (INR)": bags.reduce((sum, b) => sum + b.pieceCount * b.mrp, 0),
@@ -94,6 +101,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       const product = products.find((p) => p.id === line.productId);
       return {
         "Collection Bag": collection?.bagNumber ?? "",
+        Company: companies.find((c) => c.id === line.companyId)?.name ?? "",
         Party: distributor?.name ?? "",
         Collected: collection ? formatDate(collection.collectedDate) : "",
         SKU: product?.sku ?? "",
@@ -121,14 +129,17 @@ export function exportDispatch({
   bags,
   collections,
   distributors,
+  companies,
 }: {
   dispatch: Dispatch;
   bags: SortedBag[];
   collections: CollectionBag[];
   distributors: Distributor[];
+  companies: Company[];
 }) {
   const header: Row[] = [
     { Field: "Dispatch Number", Value: dispatch.dispatchNumber },
+    { Field: "Company", Value: companies.find((c) => c.id === dispatch.companyId)?.name ?? "" },
     { Field: "Sent Date", Value: formatDate(dispatch.sentDate) },
     { Field: "Total Bags", Value: dispatch.bagCount },
     { Field: "Total Pieces", Value: dispatch.pieceCount },
@@ -164,16 +175,19 @@ export function exportCollections({
   collections,
   countLines,
   distributors,
+  companies,
 }: {
   collections: CollectionBag[];
   countLines: CountLine[];
   distributors: Distributor[];
+  companies: Company[];
 }) {
   const rows: Row[] = collections.map((collection) => {
     const lines = countLines.filter((l) => l.collectionId === collection.id);
     const distributor = distributors.find((d) => d.id === collection.distributorId);
     return {
       "Bag Number": collection.bagNumber,
+      Company: companies.find((c) => c.id === collection.companyId)?.name ?? "",
       Party: distributor?.name ?? "",
       Region: distributor?.region ?? "",
       Status: COLLECTION_STATUS_LABELS[collection.status],
@@ -193,16 +207,19 @@ export function exportRecords({
   records,
   products,
   distributors,
+  companies,
 }: {
   records: DamageRecord[];
   products: Product[];
   distributors: Distributor[];
+  companies: Company[];
 }) {
   const rows: Row[] = records.map((r) => {
     const product = products.find((p) => p.id === r.productId);
     const distributor = distributors.find((d) => d.id === r.distributorId);
     return {
       Date: formatDate(r.date),
+      Company: companies.find((c) => c.id === r.companyId)?.name ?? "",
       Source: r.source === "own_inventory" ? "Own Inventory" : distributor?.name ?? "Party",
       SKU: product?.sku ?? "",
       Product: product?.name ?? "",

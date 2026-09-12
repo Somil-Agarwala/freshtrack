@@ -17,7 +17,7 @@ import { CountSheet, type DraftLine } from "./count-sheet";
 
 export function CollectionDetailView({ collectionId }: { collectionId: string }) {
   const router = useRouter();
-  const { collections, countLines, products, saveCount, deleteCollections } = useStore();
+  const { collections, companies, countLines, products, saveCount, deleteCollections } = useStore();
   const [counting, setCounting] = useState(false);
   const [draftLines, setDraftLines] = useState<DraftLine[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -38,6 +38,7 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
   }
 
   const distributor = distributors.find((d) => d.id === collection.distributorId);
+  const company = companies.find((c) => c.id === collection.companyId);
   const lines = countLines.filter((l) => l.collectionId === collection.id);
   const totalPieces = lines.reduce((sum, l) => sum + l.quantity, 0);
   const totalValue = lines.reduce((sum, l) => sum + l.quantity * l.mrp, 0);
@@ -81,7 +82,7 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
             <CollectionStatusBadge status={collection.status} />
           </div>
           <p className="mt-1 text-sm text-ink-dim">
-            {distributor?.name} · {distributor?.region}
+            {company?.name} · {distributor?.name} · {distributor?.region}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -122,6 +123,7 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
           onSave={handleSaveCount}
           onCancel={() => setCounting(false)}
           estimatedPieces={collection.estimatedPieces}
+          companyId={collection.companyId}
         />
       ) : lines.length === 0 ? (
         <div className="rounded-xl border border-line bg-surface">

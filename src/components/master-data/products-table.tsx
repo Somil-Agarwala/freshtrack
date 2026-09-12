@@ -10,7 +10,7 @@ import { useStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
 
 export function ProductsTable() {
-  const { products } = useStore();
+  const { products, companies } = useStore();
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -32,6 +32,7 @@ export function ProductsTable() {
             <TableHeader>
               <TableRow>
                 <TableHead>SKU</TableHead>
+                <TableHead>Company</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Unit</TableHead>
@@ -44,6 +45,7 @@ export function ProductsTable() {
               {filtered.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-mono text-xs text-ink-faint">{p.sku}</TableCell>
+                  <TableCell><Badge tone="accent">{companies.find((c) => c.id === p.companyId)?.name}</Badge></TableCell>
                   <TableCell className="font-medium text-ink">{p.name}</TableCell>
                   <TableCell className="text-ink-dim">{p.category}</TableCell>
                   <TableCell className="text-ink-dim">{p.unit}</TableCell>

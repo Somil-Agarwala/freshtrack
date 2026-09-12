@@ -22,7 +22,7 @@ import type { ReasonCategory, ResolutionStatus } from "@/types";
 import { StatusBadge } from "./status-badge";
 
 export function RecordsView() {
-  const { records, products, deleteRecords } = useStore();
+  const { records, products, companies, deleteRecords } = useStore();
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<"all" | "own_inventory" | "distributor">("all");
   const [reasonFilter, setReasonFilter] = useState<"all" | ReasonCategory>("all");
@@ -82,7 +82,7 @@ export function RecordsView() {
         description="Damage and expiry logged against your own inventory"
         actions={
           <>
-            <Button variant="outline" onClick={() => exportRecords({ records: filtered, products, distributors })} disabled={filtered.length === 0}>
+            <Button variant="outline" onClick={() => exportRecords({ records: filtered, products, distributors, companies })} disabled={filtered.length === 0}>
               <Download className="h-4 w-4" /> Export
             </Button>
             <Link href="/new-entry" className={buttonVariants()}>

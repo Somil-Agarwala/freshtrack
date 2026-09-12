@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   ClipboardList,
   FilePlus,
   Inbox,
@@ -50,6 +51,7 @@ export const navSections: NavSection[] = [
   {
     title: "Master data",
     items: [
+      { label: "Companies", href: "/master-data/companies", icon: Building2 },
       { label: "Products", href: "/master-data/products", icon: Package },
       { label: "Parties", href: "/master-data/distributors", icon: Truck },
     ],

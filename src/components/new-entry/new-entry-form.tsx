@@ -18,9 +18,10 @@ import type { ReasonCategory, ResolutionStatus, SourceType } from "@/types";
 const ADD_NEW_PRODUCT = "__add_new__";
 
 export function NewEntryForm() {
-  const { products, addProduct, addRecord } = useStore();
+  const { products, companies, addProduct, addRecord } = useStore();
 
   const [source, setSource] = useState<SourceType>("own_inventory");
+  const [companyId, setCompanyId] = useState("");
   const [distributorId, setDistributorId] = useState("");
   const [productId, setProductId] = useState("");
   const [batchNumber, setBatchNumber] = useState("");
@@ -43,6 +44,9 @@ export function NewEntryForm() {
   const [newMrp, setNewMrp] = useState("");
   const [newCost, setNewCost] = useState("");
 
+  // Product list is scoped to the chosen company so a SKU cannot be
+  // filed against the wrong brand.
+  const companyProducts = products.filter((p) => p.companyId === companyId);
   const selectedProduct = products.find((p) => p.id === productId);
   const estimate = selectedProduct && Number(quantity) > 0 ? Number(quantity) * selectedProduct.costPrice : null;
 
@@ -73,6 +77,7 @@ export function NewEntryForm() {
   function handleAddProduct() {
     if (!newName.trim()) return;
     const created = addProduct({
+      companyId,
       sku: newSku.trim() || `NEW-${Date.now().toString().slice(-5)}`,
       name: newName.trim(),
       category: newCategory.trim() || "Uncategorised",
@@ -98,6 +103,7 @@ export function NewEntryForm() {
 
   function resetForm() {
     setSource("own_inventory");
+    setCompanyId("");
     setDistributorId("");
     setProductId("");
     setBatchNumber("");
@@ -114,8 +120,9 @@ export function NewEntryForm() {
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!productId || !reason) return;
+    if (!companyId || !productId || !reason) return;
     addRecord({
+      companyId,
       date,
       source,
       distributorId: source === "distributor" ? distributorId : undefined,
@@ -193,10 +200,30 @@ export function NewEntryForm() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
+            <Label htmlFor="entryCompany">Company</Label>
+            <Select
+              id="entryCompany"
+              required
+              value={companyId}
+              onChange={(e) => {
+                setCompanyId(e.target.value);
+                setProductId("");
+                setCostValue("");
+                setCostEdited(false);
+              }}
+            >
+              <option value="">Select a company</option>
+              {companies.filter((c) => c.isActive).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="sm:col-span-2">
             <Label htmlFor="product">Product</Label>
-            <Select id="product" required value={showAddProduct ? ADD_NEW_PRODUCT : productId} onChange={(e) => handleProductChange(e.target.value)}>
-              <option value="">Select a product</option>
-              {products.map((p) => (
+            <Select id="product" required disabled={!companyId} value={showAddProduct ? ADD_NEW_PRODUCT : productId} onChange={(e) => handleProductChange(e.target.value)}>
+              <option value="">{companyId ? "Select a product" : "Choose a company first"}</option>
+              {companyProducts.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.sku} — {p.name} (cost {p.costPrice}/{p.unit})
                 </option>

@@ -26,7 +26,8 @@ export function NewCollectionDialog({
   onClose: () => void;
   onCreated: (message: string) => void;
 }) {
-  const { addCollections, collections } = useStore();
+  const { addCollections, collections, companies } = useStore();
+  const [companyId, setCompanyId] = useState("");
   const [distributorId, setDistributorId] = useState("");
   const [collectedDate, setCollectedDate] = useState(today());
   const [bagCount, setBagCount] = useState("1");
@@ -38,11 +39,15 @@ export function NewCollectionDialog({
   const parsedCount = Math.max(1, Math.floor(Number(bagCount) || 1));
 
   // Preview the exact numbers before anything is created, so nobody has
-  // to generate 20 bags to find out what they will be called.
-  const firstNumber = nextCollectionNumber(collections.length, collectedDate);
-  const lastNumber = nextCollectionNumber(collections.length + parsedCount - 1, collectedDate);
+  // to generate 20 bags to find out what they will be called. Numbering
+  // runs per company, so the preview needs the chosen company first.
+  const company = companies.find((c) => c.id === companyId);
+  const existingForCompany = collections.filter((c) => c.companyId === companyId).length;
+  const firstNumber = company ? nextCollectionNumber(company.code, existingForCompany, collectedDate) : "";
+  const lastNumber = company ? nextCollectionNumber(company.code, existingForCompany + parsedCount - 1, collectedDate) : "";
 
   function reset() {
+    setCompanyId("");
     setDistributorId("");
     setCollectedDate(today());
     setBagCount("1");
@@ -51,9 +56,10 @@ export function NewCollectionDialog({
   }
 
   function handleCreate() {
-    if (!distributorId) return;
+    if (!companyId || !distributorId) return;
     const created = addCollections(
       {
+        companyId,
         distributorId,
         collectedDate,
         estimatedPieces: estimatedPieces === "" ? undefined : Number(estimatedPieces),
@@ -86,6 +92,19 @@ export function NewCollectionDialog({
         </div>
 
         <div className="space-y-4 px-5 py-5">
+          <div>
+            <Label htmlFor="company">Company</Label>
+            <Select id="company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+              <option value="">Select a company</option>
+              {companies.filter((c) => c.isActive).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+            <p className="mt-1.5 text-xs text-ink-faint">
+              One bag holds one company. If a pickup has mixed brands, log a separate bag for each.
+            </p>
+          </div>
+
           <div>
             <Label htmlFor="party">Party</Label>
             <Select id="party" value={distributorId} onChange={(e) => setDistributorId(e.target.value)}>
@@ -123,9 +142,11 @@ export function NewCollectionDialog({
               </div>
             </div>
             <p className="mt-2 text-xs text-ink-faint">
-              {parsedCount === 1
-                ? `This will create ${firstNumber}.`
-                : `This will create ${parsedCount} separate bags, ${firstNumber} to ${lastNumber}, each countable on its own.`}
+              {!company
+                ? "Choose a company to see the bag numbers that will be generated."
+                : parsedCount === 1
+                  ? `This will create ${firstNumber}.`
+                  : `This will create ${parsedCount} separate bags, ${firstNumber} to ${lastNumber}, each countable on its own.`}
             </p>
           </div>
 
@@ -160,7 +181,7 @@ export function NewCollectionDialog({
 
         <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!distributorId}>
+          <Button onClick={handleCreate} disabled={!companyId || !distributorId}>
             Generate {parsedCount} {pluralize(parsedCount, "bag")}
           </Button>
         </div>

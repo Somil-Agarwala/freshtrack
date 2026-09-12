@@ -3,6 +3,7 @@
 import { Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BAG_CAPACITY, type MrpTier } from "@/lib/bag-packing";
+import { useStore } from "@/lib/store";
 import { formatCurrency, formatNumber, pluralize } from "@/lib/utils";
 
 /**
@@ -11,6 +12,7 @@ import { formatCurrency, formatNumber, pluralize } from "@/lib/utils";
  * split per MRP tier first, not discover it afterwards.
  */
 export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () => void }) {
+  const { companies } = useStore();
   if (tiers.length === 0) return null;
 
   const totalBags = tiers.reduce((sum, t) => sum + t.totalBags, 0);
@@ -29,7 +31,7 @@ export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () =
               {formatNumber(totalPieces)} counted pieces are waiting to be packed
             </p>
             <p className="mt-0.5 text-sm text-ink-dim">
-              This will create {totalBags} {pluralize(totalBags, "bag")} at {BAG_CAPACITY} pieces each, grouped by MRP, worth {formatCurrency(totalValue)}.
+              This will create {totalBags} {pluralize(totalBags, "bag")} at {BAG_CAPACITY} pieces each, grouped by company and MRP, worth {formatCurrency(totalValue)}.
             </p>
           </div>
         </div>
@@ -40,6 +42,7 @@ export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () =
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-line text-xs text-ink-faint">
+              <th className="py-2 pr-4 font-medium">Company</th>
               <th className="py-2 pr-4 font-medium">MRP tier</th>
               <th className="py-2 pr-4 font-medium">Pieces</th>
               <th className="py-2 pr-4 font-medium">Full bags</th>
@@ -50,7 +53,8 @@ export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () =
           </thead>
           <tbody className="divide-y divide-line">
             {tiers.map((tier) => (
-              <tr key={tier.mrp}>
+              <tr key={`${tier.companyId}-${tier.mrp}`}>
+                <td className="py-2 pr-4 text-ink-dim">{companies.find((c) => c.id === tier.companyId)?.name}</td>
                 <td className="py-2 pr-4 font-medium text-ink">{formatCurrency(tier.mrp)}</td>
                 <td className="py-2 pr-4 text-ink-dim">{formatNumber(tier.pieces)}</td>
                 <td className="py-2 pr-4 text-ink-dim">{tier.fullBags}</td>

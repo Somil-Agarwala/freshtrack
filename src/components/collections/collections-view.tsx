@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Download, Inbox, Plus, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,8 +24,9 @@ import { CollectionStatusBadge } from "./collection-status-badge";
 import { NewCollectionDialog } from "./new-collection-dialog";
 
 export function CollectionsView() {
-  const { collections, countLines, deleteCollections } = useStore();
+  const { collections, companies, countLines, deleteCollections } = useStore();
   const [statusFilter, setStatusFilter] = useState<"all" | CollectionStatus>("all");
+  const [companyFilter, setCompanyFilter] = useState("all");
   const [partyFilter, setPartyFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -49,12 +51,13 @@ export function CollectionsView() {
     return enriched.filter((c) => {
       const distributor = distributors.find((d) => d.id === c.distributorId);
       const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+      const matchesCompany = companyFilter === "all" || c.companyId === companyFilter;
       const matchesParty = partyFilter === "all" || c.distributorId === partyFilter;
       const matchesSearch =
         q === "" || c.bagNumber.toLowerCase().includes(q) || (distributor?.name.toLowerCase().includes(q) ?? false);
-      return matchesStatus && matchesParty && matchesSearch;
+      return matchesStatus && matchesCompany && matchesParty && matchesSearch;
     });
-  }, [enriched, statusFilter, partyFilter, search]);
+  }, [enriched, statusFilter, companyFilter, partyFilter, search]);
 
   const uncountedCount = enriched.filter((c) => c.status === "uncounted").length;
   const awaitingPackPieces = countLines.filter((l) => !l.packed).reduce((sum, l) => sum + l.quantity, 0);
@@ -103,7 +106,7 @@ export function CollectionsView() {
           <>
             <Button
               variant="outline"
-              onClick={() => exportCollections({ collections: filtered, countLines, distributors })}
+              onClick={() => exportCollections({ collections: filtered, countLines, distributors, companies })}
               disabled={filtered.length === 0}
             >
               <Download className="h-4 w-4" /> Export
@@ -133,6 +136,12 @@ export function CollectionsView() {
             <option value="all">All statuses</option>
             {Object.entries(COLLECTION_STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
+            ))}
+          </Select>
+          <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="sm:w-44">
+            <option value="all">All companies</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </Select>
           <Select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="sm:w-52">
@@ -171,6 +180,7 @@ export function CollectionsView() {
                 <TableRow>
                   <TableHead className="w-10" />
                   <TableHead>Bag number</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Party</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Pieces</TableHead>
@@ -181,6 +191,7 @@ export function CollectionsView() {
               <TableBody>
                 {filtered.map((c) => {
                   const distributor = distributors.find((d) => d.id === c.distributorId);
+                  const company = companies.find((co) => co.id === c.companyId);
                   return (
                     <TableRow key={c.id}>
                       <TableCell>
@@ -193,6 +204,7 @@ export function CollectionsView() {
                           {c.bagNumber}
                         </Link>
                       </TableCell>
+                      <TableCell><Badge tone="accent">{company?.name}</Badge></TableCell>
                       <TableCell className="text-ink-dim">{distributor?.name}</TableCell>
                       <TableCell><CollectionStatusBadge status={c.status} /></TableCell>
                       <TableCell className="text-ink">
@@ -214,6 +226,7 @@ export function CollectionsView() {
           <div className="space-y-3 md:hidden">
             {filtered.map((c) => {
               const distributor = distributors.find((d) => d.id === c.distributorId);
+              const company = companies.find((co) => co.id === c.companyId);
               return (
                 <div key={c.id} className="flex items-start gap-1 rounded-xl border border-line bg-surface p-3 pr-4">
                   <label className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center">
@@ -223,7 +236,9 @@ export function CollectionsView() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate font-mono text-sm font-medium text-ink">{c.bagNumber}</p>
-                        <p className="mt-0.5 truncate text-sm text-ink-dim">{distributor?.name}</p>
+                        <p className="mt-0.5 truncate text-sm text-ink-dim">
+                          {company?.name} · {distributor?.name}
+                        </p>
                       </div>
                       <CollectionStatusBadge status={c.status} />
                     </div>
@@ -260,7 +275,7 @@ export function CollectionsView() {
       <NewCollectionDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-                onCreated={(message) => flash(message)}
+        onCreated={(message) => flash(message)}
       />
     </div>
   );

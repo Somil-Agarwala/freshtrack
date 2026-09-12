@@ -23,8 +23,9 @@ import type { SortedBagStatus } from "@/types";
 import { PackingPanel } from "./packing-panel";
 
 export function SortedBagsView() {
-  const { sortedBags, countLines, collections, products, packPendingLines, deleteSortedBags, createDispatch } = useStore();
+  const { sortedBags, companies, countLines, collections, products, packPendingLines, deleteSortedBags, createDispatch } = useStore();
   const [statusFilter, setStatusFilter] = useState<"all" | SortedBagStatus>("all");
+  const [companyFilter, setCompanyFilter] = useState("all");
   const [mrpFilter, setMrpFilter] = useState("all");
   const [partyFilter, setPartyFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -41,20 +42,26 @@ export function SortedBagsView() {
     const q = search.trim().toLowerCase();
     return sortedBags.filter((bag) => {
       const matchesStatus = statusFilter === "all" || bag.status === statusFilter;
+      const matchesCompany = companyFilter === "all" || bag.companyId === companyFilter;
       const matchesMrp = mrpFilter === "all" || bag.mrp === Number(mrpFilter);
       const matchesSearch = q === "" || bag.bagNumber.toLowerCase().includes(q);
       const matchesParty =
         partyFilter === "all" ||
         bag.sourceCollectionIds.some((id) => collections.find((c) => c.id === id)?.distributorId === partyFilter);
-      return matchesStatus && matchesMrp && matchesSearch && matchesParty;
+      return matchesStatus && matchesCompany && matchesMrp && matchesSearch && matchesParty;
     });
-  }, [sortedBags, statusFilter, mrpFilter, partyFilter, search, collections]);
+  }, [sortedBags, statusFilter, companyFilter, mrpFilter, partyFilter, search, collections]);
 
   const readyBags = sortedBags.filter((b) => b.status === "ready");
   const readyValue = readyBags.reduce((sum, b) => sum + b.pieceCount * b.mrp, 0);
   const allFilteredSelected = filtered.length > 0 && filtered.every((b) => selectedIds.has(b.id));
   const selectedBags = sortedBags.filter((b) => selectedIds.has(b.id));
   const selectedReady = selectedBags.filter((b) => b.status === "ready");
+  // A dispatch goes to one factory, so a mixed-company selection cannot
+  // be sent. Surfaced as a message rather than a silent no-op.
+  const selectedCompanyIds = Array.from(new Set(selectedReady.map((b) => b.companyId)));
+  const isSingleCompany = selectedCompanyIds.length === 1;
+  const selectedCompanyName = companies.find((c) => c.id === selectedCompanyIds[0])?.name ?? "";
 
   function flash(message: string) {
     setNotice(message);
@@ -96,7 +103,10 @@ export function SortedBagsView() {
 
   function handleDispatch() {
     const count = selectedReady.length;
-    const ok = window.confirm(`Send ${count} ${pluralize(count, "bag")} to the factory? This creates a dispatch record you can download as a report.`);
+    if (!isSingleCompany) return;
+    const ok = window.confirm(
+      `Send ${count} ${pluralize(count, "bag")} to the ${selectedCompanyName} factory? This creates a dispatch record you can download as a report.`
+    );
     if (!ok) return;
     const dispatch = createDispatch(selectedReady.map((b) => b.id));
     setSelectedIds(new Set());
@@ -112,6 +122,7 @@ export function SortedBagsView() {
       countLines,
       distributors,
       products,
+      companies,
       filterLabel: statusFilter === "all" ? undefined : SORTED_BAG_STATUS_LABELS[statusFilter],
     });
   }
@@ -149,6 +160,12 @@ export function SortedBagsView() {
             <option value="all">All statuses</option>
             {Object.entries(SORTED_BAG_STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
+            ))}
+          </Select>
+          <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="sm:w-44">
+            <option value="all">All companies</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </Select>
           <Select value={mrpFilter} onChange={(e) => setMrpFilter(e.target.value)} className="sm:w-36">
@@ -192,6 +209,7 @@ export function SortedBagsView() {
                 <TableRow>
                   <TableHead className="w-10" />
                   <TableHead>Bag number</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>MRP</TableHead>
                   <TableHead>Pieces</TableHead>
                   <TableHead>Fill</TableHead>
@@ -209,6 +227,7 @@ export function SortedBagsView() {
                       </label>
                     </TableCell>
                     <TableCell className="font-mono text-xs font-medium text-ink">{bag.bagNumber}</TableCell>
+                    <TableCell><Badge tone="accent">{companies.find((c) => c.id === bag.companyId)?.name}</Badge></TableCell>
                     <TableCell className="text-ink-dim">{formatCurrency(bag.mrp)}</TableCell>
                     <TableCell className="text-ink">{formatNumber(bag.pieceCount)}</TableCell>
                     <TableCell>
@@ -235,7 +254,9 @@ export function SortedBagsView() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate font-mono text-sm font-medium text-ink">{bag.bagNumber}</p>
-                      <p className="mt-0.5 text-sm text-ink-dim">MRP {formatCurrency(bag.mrp)}</p>
+                      <p className="mt-0.5 text-sm text-ink-dim">
+                        {companies.find((c) => c.id === bag.companyId)?.name} · MRP {formatCurrency(bag.mrp)}
+                      </p>
                     </div>
                     <Badge tone={SORTED_BAG_STATUS_TONE[bag.status]}>{SORTED_BAG_STATUS_LABELS[bag.status]}</Badge>
                   </div>
@@ -261,10 +282,15 @@ export function SortedBagsView() {
       )}
 
       <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
-        {selectedReady.length > 0 && (
+        {selectedReady.length > 0 && isSingleCompany && (
           <Button size="sm" onClick={handleDispatch}>
-            <Send className="h-4 w-4" /> Send {selectedReady.length} to factory
+            <Send className="h-4 w-4" /> Send {selectedReady.length} to {selectedCompanyName}
           </Button>
+        )}
+        {selectedReady.length > 0 && !isSingleCompany && (
+          <span className="text-sm text-amber-300">
+            Selection spans {selectedCompanyIds.length} companies. Each factory needs its own dispatch.
+          </span>
         )}
         <Button size="sm" variant="danger" onClick={handleDelete}>
           Delete {pluralize(selectedIds.size, "bag")}

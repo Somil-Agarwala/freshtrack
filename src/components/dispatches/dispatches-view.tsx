@@ -19,7 +19,7 @@ import { formatCurrency, formatDate, formatNumber, pluralize } from "@/lib/utils
 import type { DispatchStatus } from "@/types";
 
 export function DispatchesView() {
-  const { dispatches, deleteDispatches } = useStore();
+  const { dispatches, companies, deleteDispatches } = useStore();
   const [statusFilter, setStatusFilter] = useState<"all" | DispatchStatus>("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
@@ -93,6 +93,7 @@ export function DispatchesView() {
                 <TableRow>
                   <TableHead className="w-10" />
                   <TableHead>Dispatch</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Sent</TableHead>
                   <TableHead>Bags</TableHead>
                   <TableHead>Pieces</TableHead>
@@ -114,6 +115,7 @@ export function DispatchesView() {
                         {d.dispatchNumber}
                       </Link>
                     </TableCell>
+                    <TableCell><Badge tone="accent">{companies.find((c) => c.id === d.companyId)?.name}</Badge></TableCell>
                     <TableCell className="text-ink-dim">{formatDate(d.sentDate)}</TableCell>
                     <TableCell className="text-ink">{d.bagCount}</TableCell>
                     <TableCell className="text-ink-dim">{formatNumber(d.pieceCount)}</TableCell>
@@ -136,7 +138,9 @@ export function DispatchesView() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate font-mono text-sm font-medium text-ink">{d.dispatchNumber}</p>
-                      <p className="mt-0.5 text-sm text-ink-dim">{d.bagCount} bags · {formatNumber(d.pieceCount)} pcs</p>
+                      <p className="mt-0.5 text-sm text-ink-dim">
+                        {companies.find((c) => c.id === d.companyId)?.name} · {d.bagCount} bags · {formatNumber(d.pieceCount)} pcs
+                      </p>
                     </div>
                     <Badge tone={DISPATCH_STATUS_TONE[d.status]}>{DISPATCH_STATUS_LABELS[d.status]}</Badge>
                   </div>

@@ -27,15 +27,21 @@ export function CountSheet({
   onSave,
   onCancel,
   estimatedPieces,
+  companyId,
 }: {
   lines: DraftLine[];
   onChange: (lines: DraftLine[]) => void;
   onSave: () => void;
   onCancel: () => void;
   estimatedPieces?: number;
+  companyId: string;
 }) {
-  const { products } = useStore();
-  const activeProducts = products.filter((p) => p.isActive);
+  const { products, companies } = useStore();
+  // Only this bag's company can appear. Counting a Haldirams SKU into a
+  // Cadbury bag would produce a claim no factory will accept, so the
+  // wrong SKU is simply not offered.
+  const activeProducts = products.filter((p) => p.isActive && p.companyId === companyId);
+  const company = companies.find((c) => c.id === companyId);
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
 
@@ -74,7 +80,9 @@ export function CountSheet({
     <div className="rounded-xl border border-line bg-surface">
       <div className="border-b border-line px-5 py-4">
         <h2 className="text-base font-semibold text-ink">Count sheet</h2>
-        <p className="mt-0.5 text-sm text-ink-dim">Add each SKU as you count it. Bags are packed by MRP later, so the MRP comes from the product.</p>
+        <p className="mt-0.5 text-sm text-ink-dim">
+          Add each SKU as you count it. Only {company?.name ?? "this company"} products are listed, and the MRP comes from the product.
+        </p>
       </div>
 
       <div className="border-b border-line px-5 py-4">
@@ -113,7 +121,11 @@ export function CountSheet({
         </div>
       </div>
 
-      {lines.length === 0 ? (
+      {activeProducts.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-ink-dim">
+          No active products found for {company?.name ?? "this company"}. Add one in Products first.
+        </p>
+      ) : lines.length === 0 ? (
         <p className="px-5 py-10 text-center text-sm text-ink-dim">No lines counted yet.</p>
       ) : (
         <ul className="divide-y divide-line">

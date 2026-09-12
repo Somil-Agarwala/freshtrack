@@ -18,7 +18,7 @@ import { useStore } from "@/lib/store";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 
 export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
-  const { dispatches, sortedBags, collections, recordSettlement } = useStore();
+  const { dispatches, companies, sortedBags, collections, recordSettlement } = useStore();
   const [receivedInput, setReceivedInput] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -59,11 +59,16 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
       <Notice message={notice} />
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-mono text-2xl font-semibold text-ink">{dispatch.dispatchNumber}</h1>
-          <Badge tone={DISPATCH_STATUS_TONE[dispatch.status]}>{DISPATCH_STATUS_LABELS[dispatch.status]}</Badge>
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-mono text-2xl font-semibold text-ink">{dispatch.dispatchNumber}</h1>
+            <Badge tone={DISPATCH_STATUS_TONE[dispatch.status]}>{DISPATCH_STATUS_LABELS[dispatch.status]}</Badge>
+          </div>
+          <p className="mt-1 text-sm text-ink-dim">
+            {companies.find((c) => c.id === dispatch.companyId)?.name} factory
+          </p>
         </div>
-        <Button variant="outline" onClick={() => exportDispatch({ dispatch, bags, collections, distributors })}>
+        <Button variant="outline" onClick={() => exportDispatch({ dispatch, bags, collections, distributors, companies })}>
           <Download className="h-4 w-4" /> Download report
         </Button>
       </div>
