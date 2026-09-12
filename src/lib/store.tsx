@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import {
   collectionBags as seedCollections,
+  companies as seedCompanies,
   countLines as seedCountLines,
   dispatches as seedDispatches,
   products as seedProducts,
@@ -11,7 +12,7 @@ import {
 } from "./mock-data";
 import { buildMrpTiers, nextCollectionNumber, nextDispatchNumber, packTiersIntoBags } from "./bag-packing";
 import { today } from "./utils";
-import type { CollectionBag, CountLine, DamageRecord, Dispatch, Product, SortedBag } from "@/types";
+import type { CollectionBag, Company, CountLine, DamageRecord, Dispatch, Product, SortedBag } from "@/types";
 
 /**
  * One in-memory store shared by every page, so the pipeline genuinely
@@ -26,6 +27,7 @@ import type { CollectionBag, CountLine, DamageRecord, Dispatch, Product, SortedB
  * database is connected.
  */
 interface StoreValue {
+  companies: Company[];
   products: Product[];
   collections: CollectionBag[];
   countLines: CountLine[];
@@ -34,9 +36,10 @@ interface StoreValue {
   records: DamageRecord[];
 
   addProduct: (product: Omit<Product, "id">) => Product;
-  addCollections: (input: { distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => CollectionBag[];
+  addCollections: (input: { companyId: string; distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => CollectionBag[];
   deleteCollections: (ids: string[]) => void;
   saveCount: (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => void;
+  packPendingForCompany: (companyId: string) => { bagCount: number; pieceCount: number };
   packPendingLines: () => { bagCount: number; pieceCount: number };
   deleteSortedBags: (ids: string[]) => void;
   createDispatch: (bagIds: string[]) => Dispatch | null;
@@ -49,6 +52,7 @@ interface StoreValue {
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const [companies] = useState<Company[]>(seedCompanies);
   const [products, setProducts] = useState<Product[]>(seedProducts);
   const [collections, setCollections] = useState<CollectionBag[]>(seedCollections);
   const [countLines, setCountLines] = useState<CountLine[]>(seedCountLines);
@@ -62,21 +66,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
-    const addCollections = useCallback(
-    (input: { distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => {
+  const addCollections = useCallback(
+    (input: { companyId: string; distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => {
       // One pickup usually means several bags from the same party, so the
-      // whole batch is numbered in a single pass. Numbering is derived from
-      // the current count plus the index, which keeps the sequence
-      // gap-free across the batch instead of every bag racing for the
-      // same "next" number.
+      // whole batch is numbered in a single pass. Sequences run per
+      // company, so Cadbury and Haldirams each keep their own clean run.
       const safeCount = Math.max(1, Math.floor(bagCount));
       const stamp = Date.now();
+      const code = companies.find((c) => c.id === input.companyId)?.code ?? "GEN";
+      const existingForCompany = collections.filter((c) => c.companyId === input.companyId).length;
 
       const created: CollectionBag[] = Array.from({ length: safeCount }, (_, index) => ({
         // Index is part of the id because Date.now() returns the same
         // value for every bag created inside one loop.
         id: `c-${stamp}-${index}`,
-        bagNumber: nextCollectionNumber(collections.length + index, input.collectedDate),
+        bagNumber: nextCollectionNumber(code, existingForCompany + index, input.collectedDate),
+        companyId: input.companyId,
         distributorId: input.distributorId,
         collectedDate: input.collectedDate,
         status: "uncounted",
@@ -89,48 +94,80 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCollections((prev) => [...created.slice().reverse(), ...prev]);
       return created;
     },
-    [collections.length]
+    [collections, companies]
   );
+
   const deleteCollections = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
     setCollections((prev) => prev.filter((c) => !idSet.has(c.id)));
     setCountLines((prev) => prev.filter((l) => !idSet.has(l.collectionId)));
   }, []);
 
-  const saveCount = useCallback((collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => {
-    setCountLines((prev) => {
-      const withoutOld = prev.filter((l) => l.collectionId !== collectionId);
-      const created: CountLine[] = lines.map((line, index) => ({
-        id: `cl-${Date.now()}-${index}`,
-        collectionId,
-        productId: line.productId,
-        mrp: line.mrp,
-        quantity: line.quantity,
-        packed: false,
-      }));
-      return [...withoutOld, ...created];
-    });
-    setCollections((prev) =>
-      prev.map((c) => (c.id === collectionId ? { ...c, status: "counted", countedDate: today() } : c))
-    );
-  }, []);
+  const saveCount = useCallback(
+    (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => {
+      // The bag's company is copied onto every line, so packing can group
+      // by company without joining back through the collection each time.
+      const companyId = collections.find((c) => c.id === collectionId)?.companyId ?? "";
+      setCountLines((prev) => {
+        const withoutOld = prev.filter((l) => l.collectionId !== collectionId);
+        const created: CountLine[] = lines.map((line, index) => ({
+          id: `cl-${Date.now()}-${index}`,
+          collectionId,
+          companyId,
+          productId: line.productId,
+          mrp: line.mrp,
+          quantity: line.quantity,
+          packed: false,
+        }));
+        return [...withoutOld, ...created];
+      });
+      setCollections((prev) =>
+        prev.map((c) => (c.id === collectionId ? { ...c, status: "counted", countedDate: today() } : c))
+      );
+    },
+    [collections]
+  );
 
-  const packPendingLines = useCallback(() => {
-    const tiers = buildMrpTiers(countLines);
-    if (tiers.length === 0) return { bagCount: 0, pieceCount: 0 };
+  // Shared by "pack everything" and "pack one company". Passing a filter
+  // keeps the two paths identical apart from which lines they consider,
+  // so they cannot drift apart.
+  const packLines = useCallback(
+    (matches: (line: CountLine) => boolean) => {
+      const eligible = countLines.filter((l) => !l.packed && matches(l));
+      if (eligible.length === 0) return { bagCount: 0, pieceCount: 0 };
 
-    const created = packTiersIntoBags(tiers, sortedBags.length, today());
-    const packedCollectionIds = new Set(countLines.filter((l) => !l.packed).map((l) => l.collectionId));
+      const tiers = buildMrpTiers(eligible);
+      const created = packTiersIntoBags(tiers, sortedBags, companies, today());
+      const eligibleIds = new Set(eligible.map((l) => l.id));
+      const touchedCollectionIds = new Set(eligible.map((l) => l.collectionId));
 
-    setSortedBags((prev) => [...prev, ...created]);
-    setCountLines((prev) => prev.map((l) => (l.packed ? l : { ...l, packed: true })));
-    setCollections((prev) => prev.map((c) => (packedCollectionIds.has(c.id) ? { ...c, status: "packed" } : c)));
+      setSortedBags((prev) => [...prev, ...created]);
+      setCountLines((prev) => prev.map((l) => (eligibleIds.has(l.id) ? { ...l, packed: true } : l)));
+      // A collection only becomes "packed" once none of its lines remain
+      // unpacked -- packing one company must not mark a bag finished.
+      setCollections((prev) =>
+        prev.map((c) => {
+          if (!touchedCollectionIds.has(c.id)) return c;
+          const stillPending = countLines.some((l) => l.collectionId === c.id && !l.packed && !eligibleIds.has(l.id));
+          return stillPending ? c : { ...c, status: "packed" };
+        })
+      );
 
-    return {
-      bagCount: created.length,
-      pieceCount: created.reduce((sum, b) => sum + b.pieceCount, 0),
-    };
-  }, [countLines, sortedBags.length]);
+      return {
+        bagCount: created.length,
+        pieceCount: created.reduce((sum, b) => sum + b.pieceCount, 0),
+      };
+    },
+    [countLines, sortedBags, companies]
+  );
+
+  const packPendingLines = useCallback(() => packLines(() => true), [packLines]);
+
+  const packPendingForCompany = useCallback(
+    (companyId: string) => packLines((line) => line.companyId === companyId),
+    [packLines]
+  );
+
 
   const deleteSortedBags = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
@@ -143,9 +180,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const selected = sortedBags.filter((b) => idSet.has(b.id) && b.status === "ready");
       if (selected.length === 0) return null;
 
+      // A dispatch goes to one company's factory, so refuse to build a
+      // mixed one rather than silently creating an unclaimable batch.
+      const companyId = selected[0].companyId;
+      if (selected.some((b) => b.companyId !== companyId)) return null;
+
+      const code = companies.find((c) => c.id === companyId)?.code ?? "GEN";
+      const existingForCompany = dispatches.filter((d) => d.companyId === companyId).length;
+
       const dispatch: Dispatch = {
         id: `dp-${Date.now()}`,
-        dispatchNumber: nextDispatchNumber(dispatches.length, today()),
+        dispatchNumber: nextDispatchNumber(code, existingForCompany, today()),
+        companyId,
         sentDate: today(),
         bagCount: selected.length,
         pieceCount: selected.reduce((sum, b) => sum + b.pieceCount, 0),
@@ -159,7 +205,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       return dispatch;
     },
-    [dispatches.length, sortedBags]
+    [dispatches, sortedBags, companies]
   );
 
   const recordSettlement = useCallback((dispatchId: string, receivedValue: number) => {
@@ -195,6 +241,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<StoreValue>(
     () => ({
+      companies,
       products,
       collections,
       countLines,
@@ -206,6 +253,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteCollections,
       saveCount,
       packPendingLines,
+      packPendingForCompany,
       deleteSortedBags,
       createDispatch,
       recordSettlement,
@@ -214,6 +262,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteRecords,
     }),
     [
+      companies,
       products,
       collections,
       countLines,
@@ -225,6 +274,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteCollections,
       saveCount,
       packPendingLines,
+      packPendingForCompany,
       deleteSortedBags,
       createDispatch,
       recordSettlement,
