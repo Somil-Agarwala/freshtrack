@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 import {
   collectionBags as seedCollections,
   companies as seedCompanies,
+  distributors as seedDistributors,
   countLines as seedCountLines,
   dispatches as seedDispatches,
   products as seedProducts,
@@ -20,7 +21,7 @@ import {
   type SequenceState,
 } from "./bag-packing";
 import { today } from "./utils";
-import type { CollectionBag, Company, CountLine, DamageRecord, Dispatch, Product, SortedBag } from "@/types";
+import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, Product, SortedBag } from "@/types";
 
 /**
  * One in-memory store shared by every page, so the pipeline genuinely
@@ -36,6 +37,7 @@ import type { CollectionBag, Company, CountLine, DamageRecord, Dispatch, Product
  */
 interface StoreValue {
   companies: Company[];
+  distributors: Distributor[];
   products: Product[];
   collections: CollectionBag[];
   countLines: CountLine[];
@@ -63,6 +65,7 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [companies] = useState<Company[]>(seedCompanies);
+  const [distributors] = useState<Distributor[]>(seedDistributors);
   const [products, setProducts] = useState<Product[]>(seedProducts);
   const [collections, setCollections] = useState<CollectionBag[]>(seedCollections);
   const [countLines, setCountLines] = useState<CountLine[]>(seedCountLines);
@@ -288,6 +291,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<StoreValue>(
     () => ({
       companies,
+      distributors,
       products,
       collections,
       countLines,
@@ -310,6 +314,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       companies,
+      distributors,
       products,
       collections,
       countLines,

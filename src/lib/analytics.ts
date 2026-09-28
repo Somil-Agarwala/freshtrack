@@ -1,0 +1,421 @@
+import { BAG_CAPACITY } from "./bag-packing";
+import { REASON_LABELS } from "./constants";
+import type {
+  CollectionBag,
+  Company,
+  CountLine,
+  DamageRecord,
+  Dispatch,
+  Distributor,
+  Product,
+  SortedBag,
+} from "@/types";
+
+/**
+ * Every derived number in the app, computed here and nowhere else.
+ *
+ * All functions are pure: they take the rows they need and return plain
+ * objects. That keeps them trivially testable, and means they map 1:1 onto
+ * SQL views when Supabase takes over -- each one becomes a view or an RPC
+ * with the same name and the same shape.
+ */
+
+export interface Dataset {
+  companies: Company[];
+  products: Product[];
+  distributors: Distributor[];
+  collections: CollectionBag[];
+  countLines: CountLine[];
+  sortedBags: SortedBag[];
+  dispatches: Dispatch[];
+  records: DamageRecord[];
+}
+
+const DAY = 86400000;
+
+function daysBetween(from: string, to: string): number {
+  return Math.round((new Date(to).getTime() - new Date(from).getTime()) / DAY);
+}
+function daysSince(from: string): number {
+  return Math.round((Date.now() - new Date(from).getTime()) / DAY);
+}
+function mean(values: number[]): number {
+  return values.length === 0 ? 0 : values.reduce((s, v) => s + v, 0) / values.length;
+}
+/** Scopes a dataset to one company, or returns it whole for "all". */
+export function scopeToCompany(d: Dataset, companyId: string | "all"): Dataset {
+  if (companyId === "all") return d;
+  const collections = d.collections.filter((c) => c.companyId === companyId);
+  const ids = new Set(collections.map((c) => c.id));
+  return {
+    ...d,
+    collections,
+    countLines: d.countLines.filter((l) => ids.has(l.collectionId)),
+    sortedBags: d.sortedBags.filter((b) => b.companyId === companyId),
+    dispatches: d.dispatches.filter((x) => x.companyId === companyId),
+    records: d.records.filter((r) => r.companyId === companyId),
+    products: d.products.filter((p) => p.companyId === companyId),
+  };
+}
+
+/* ---------------------------------------------------------------- */
+/* 1. PIPELINE -- where stock and value are sitting right now        */
+/* ---------------------------------------------------------------- */
+
+export interface PipelineStage {
+  stage: string;
+  bags: number;
+  pieces: number;
+  value: number;
+  /** The screen that clears this stage. */
+  href: string;
+}
+
+export function pipeline(d: Dataset): PipelineStage[] {
+  const uncounted = d.collections.filter((c) => c.status === "uncounted");
+  const unpacked = d.countLines.filter((l) => !l.packed);
+  const ready = d.sortedBags.filter((b) => b.status === "ready");
+  const openDispatches = d.dispatches.filter((x) => x.status === "sent" || x.status === "under_review");
+
+  return [
+    {
+      stage: "Not counted",
+      bags: uncounted.length,
+      // Rough count only -- these bags have not been opened yet.
+      pieces: uncounted.reduce((s, c) => s + (c.estimatedPieces ?? 0), 0),
+      value: 0,
+      href: "/collections",
+    },
+    {
+      stage: "Counted, not packed",
+      bags: new Set(unpacked.map((l) => l.collectionId)).size,
+      pieces: unpacked.reduce((s, l) => s + l.quantity, 0),
+      value: unpacked.reduce((s, l) => s + l.quantity * l.mrp, 0),
+      href: "/sorted-bags",
+    },
+    {
+      stage: "Ready to send",
+      bags: ready.length,
+      pieces: ready.reduce((s, b) => s + b.pieceCount, 0),
+      value: ready.reduce((s, b) => s + b.pieceCount * b.mrp, 0),
+      href: "/sorted-bags",
+    },
+    {
+      stage: "At factory, unsettled",
+      bags: openDispatches.reduce((s, x) => s + x.bagCount, 0),
+      pieces: openDispatches.reduce((s, x) => s + x.pieceCount, 0),
+      value: openDispatches.reduce((s, x) => s + (x.claimedValue - (x.receivedValue ?? 0)), 0),
+      href: "/dispatches",
+    },
+  ];
+}
+
+/** Uncounted bags bucketed by how long they have been waiting. */
+export function countingBacklog(d: Dataset) {
+  const buckets = [
+    { label: "0-3 days", min: 0, max: 3 },
+    { label: "4-7 days", min: 4, max: 7 },
+    { label: "8-14 days", min: 8, max: 14 },
+    { label: "15+ days", min: 15, max: Infinity },
+  ];
+  const uncounted = d.collections.filter((c) => c.status === "uncounted");
+  return buckets.map((b) => {
+    const rows = uncounted.filter((c) => {
+      const age = daysSince(c.collectedDate);
+      return age >= b.min && age <= b.max;
+    });
+    return { label: b.label, bags: rows.length, pieces: rows.reduce((s, c) => s + (c.estimatedPieces ?? 0), 0) };
+  });
+}
+
+/* ---------------------------------------------------------------- */
+/* 2. CLAIMS & RECOVERY -- did the money actually come back          */
+/* ---------------------------------------------------------------- */
+
+export interface ClaimRow {
+  companyId: string;
+  company: string;
+  dispatches: number;
+  claimed: number;
+  received: number;
+  shortfall: number;
+  /** Of settled claims only, so open ones do not drag the rate down. */
+  recoveryPct: number;
+  /** Mean days from sent to settled. Null while nothing has settled. */
+  avgSettlementDays: number | null;
+}
+
+export function claimsByCompany(d: Dataset): ClaimRow[] {
+  return d.companies
+    .map((co) => {
+      const rows = d.dispatches.filter((x) => x.companyId === co.id);
+      const settled = rows.filter((x) => x.receivedValue != null);
+      const claimedOnSettled = settled.reduce((s, x) => s + x.claimedValue, 0);
+      const received = settled.reduce((s, x) => s + (x.receivedValue ?? 0), 0);
+      const lags = rows
+        .filter((x) => x.settledDate)
+        .map((x) => daysBetween(x.sentDate, x.settledDate as string));
+      return {
+        companyId: co.id,
+        company: co.name,
+        dispatches: rows.length,
+        claimed: rows.reduce((s, x) => s + x.claimedValue, 0),
+        received,
+        shortfall: claimedOnSettled - received,
+        recoveryPct: claimedOnSettled > 0 ? (received / claimedOnSettled) * 100 : 0,
+        avgSettlementDays: lags.length > 0 ? Math.round(mean(lags)) : null,
+      };
+    })
+    .filter((r) => r.dispatches > 0)
+    .sort((a, b) => b.claimed - a.claimed);
+}
+
+export function recoveryHeadline(d: Dataset) {
+  const settled = d.dispatches.filter((x) => x.receivedValue != null);
+  const claimedOnSettled = settled.reduce((s, x) => s + x.claimedValue, 0);
+  const received = settled.reduce((s, x) => s + (x.receivedValue ?? 0), 0);
+  const open = d.dispatches.filter((x) => x.receivedValue == null);
+  return {
+    claimedAllTime: d.dispatches.reduce((s, x) => s + x.claimedValue, 0),
+    received,
+    shortfall: claimedOnSettled - received,
+    recoveryPct: claimedOnSettled > 0 ? (received / claimedOnSettled) * 100 : 0,
+    openValue: open.reduce((s, x) => s + x.claimedValue, 0),
+    openCount: open.length,
+  };
+}
+
+/* ---------------------------------------------------------------- */
+/* 3. PARTIES -- who the damage is coming from                       */
+/* ---------------------------------------------------------------- */
+
+export interface PartyRow {
+  partyId: string;
+  party: string;
+  region: string;
+  bags: number;
+  pieces: number;
+  value: number;
+  sharePct: number;
+  /** Counted minus rough count, as a % of rough. Negative = came up short. */
+  countVariancePct: number | null;
+}
+
+export function partyBreakdown(d: Dataset): PartyRow[] {
+  const total = d.countLines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+  return d.distributors
+    .map((party) => {
+      const bags = d.collections.filter((c) => c.distributorId === party.id);
+      const ids = new Set(bags.map((c) => c.id));
+      const lines = d.countLines.filter((l) => ids.has(l.collectionId));
+      const value = lines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+
+      // Variance only over bags that were both estimated AND counted.
+      const comparable = bags.filter((c) => c.estimatedPieces != null && c.status !== "uncounted");
+      const est = comparable.reduce((s, c) => s + (c.estimatedPieces ?? 0), 0);
+      const act = comparable.reduce(
+        (s, c) => s + d.countLines.filter((l) => l.collectionId === c.id).reduce((t, l) => t + l.quantity, 0),
+        0
+      );
+
+      return {
+        partyId: party.id,
+        party: party.name,
+        region: party.region,
+        bags: bags.length,
+        pieces: lines.reduce((s, l) => s + l.quantity, 0),
+        value,
+        sharePct: total > 0 ? (value / total) * 100 : 0,
+        countVariancePct: est > 0 ? ((act - est) / est) * 100 : null,
+      };
+    })
+    .filter((r) => r.bags > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+export function regionBreakdown(d: Dataset) {
+  const map = new Map<string, { pieces: number; value: number; bags: number }>();
+  d.collections.forEach((c) => {
+    const region = d.distributors.find((x) => x.id === c.distributorId)?.region ?? "Unknown";
+    const lines = d.countLines.filter((l) => l.collectionId === c.id);
+    const e = map.get(region) ?? { pieces: 0, value: 0, bags: 0 };
+    e.bags += 1;
+    e.pieces += lines.reduce((s, l) => s + l.quantity, 0);
+    e.value += lines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+    map.set(region, e);
+  });
+  return Array.from(map.entries())
+    .map(([region, v]) => ({ region, ...v }))
+    .sort((a, b) => b.value - a.value);
+}
+
+/* ---------------------------------------------------------------- */
+/* 4. PRODUCTS & MRP -- what is actually coming back                 */
+/* ---------------------------------------------------------------- */
+
+export function topSkus(d: Dataset, limit = 10) {
+  const map = new Map<string, { pieces: number; value: number }>();
+  d.countLines.forEach((l) => {
+    const e = map.get(l.productId) ?? { pieces: 0, value: 0 };
+    e.pieces += l.quantity;
+    e.value += l.quantity * l.mrp;
+    map.set(l.productId, e);
+  });
+  return Array.from(map.entries())
+    .map(([productId, v]) => {
+      const p = d.products.find((x) => x.id === productId);
+      return { productId, sku: p?.sku ?? "", name: p?.name ?? "Unknown", ...v };
+    })
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit);
+}
+
+export function categoryBreakdown(d: Dataset) {
+  const map = new Map<string, { pieces: number; value: number }>();
+  d.countLines.forEach((l) => {
+    const cat = d.products.find((p) => p.id === l.productId)?.category ?? "Uncategorised";
+    const e = map.get(cat) ?? { pieces: 0, value: 0 };
+    e.pieces += l.quantity;
+    e.value += l.quantity * l.mrp;
+    map.set(cat, e);
+  });
+  return Array.from(map.entries())
+    .map(([category, v]) => ({ category, ...v }))
+    .sort((a, b) => b.value - a.value);
+}
+
+/** Pieces and bags per MRP tier -- the shape of the claim itself. */
+export function mrpBreakdown(d: Dataset) {
+  const map = new Map<number, { pieces: number; bags: number; value: number }>();
+  d.countLines.forEach((l) => {
+    const e = map.get(l.mrp) ?? { pieces: 0, bags: 0, value: 0 };
+    e.pieces += l.quantity;
+    e.value += l.quantity * l.mrp;
+    map.set(l.mrp, e);
+  });
+  d.sortedBags.forEach((b) => {
+    const e = map.get(b.mrp) ?? { pieces: 0, bags: 0, value: 0 };
+    e.bags += 1;
+    map.set(b.mrp, e);
+  });
+  return Array.from(map.entries())
+    .map(([mrp, v]) => ({ mrp, label: `MRP ${mrp}`, ...v }))
+    .sort((a, b) => a.mrp - b.mrp);
+}
+
+/* ---------------------------------------------------------------- */
+/* 5. OPERATIONS -- how well the process is running                  */
+/* ---------------------------------------------------------------- */
+
+export function bagFill(d: Dataset) {
+  const bags = d.sortedBags;
+  const full = bags.filter((b) => b.isFull).length;
+  const partial = bags.length - full;
+  const pieces = bags.reduce((s, b) => s + b.pieceCount, 0);
+  const capacity = bags.length * BAG_CAPACITY;
+  return {
+    bags: bags.length,
+    full,
+    partial,
+    avgFillPct: bags.length > 0 ? (pieces / capacity) * 100 : 0,
+    // Unused space across part-filled bags: the cost of fragmentation.
+    wastedPieces: capacity - pieces,
+  };
+}
+
+/** Mean days from pickup to counted, per company -- the real bottleneck. */
+export function countTurnaround(d: Dataset) {
+  return d.companies
+    .map((co) => {
+      const counted = d.collections.filter(
+        (c) => c.companyId === co.id && c.countedDate != null
+      );
+      const lags = counted.map((c) => daysBetween(c.collectedDate, c.countedDate as string));
+      const pending = d.collections.filter((c) => c.companyId === co.id && c.status === "uncounted");
+      return {
+        company: co.name,
+        counted: counted.length,
+        avgDays: lags.length > 0 ? Math.round(mean(lags)) : null,
+        oldestPendingDays: pending.length > 0 ? Math.max(...pending.map((c) => daysSince(c.collectedDate))) : null,
+      };
+    })
+    .filter((r) => r.counted > 0 || r.oldestPendingDays != null);
+}
+
+/** Rough-count accuracy: are pickups being estimated well? */
+export function countAccuracy(d: Dataset) {
+  const rows = d.collections
+    .filter((c) => c.estimatedPieces != null && c.status !== "uncounted")
+    .map((c) => {
+      const actual = d.countLines.filter((l) => l.collectionId === c.id).reduce((s, l) => s + l.quantity, 0);
+      const estimated = c.estimatedPieces as number;
+      return {
+        bagNumber: c.bagNumber,
+        estimated,
+        actual,
+        variance: actual - estimated,
+        variancePct: estimated > 0 ? ((actual - estimated) / estimated) * 100 : 0,
+      };
+    });
+  return {
+    rows: rows.sort((a, b) => Math.abs(b.variancePct) - Math.abs(a.variancePct)),
+    meanAbsPct: rows.length > 0 ? mean(rows.map((r) => Math.abs(r.variancePct))) : 0,
+  };
+}
+
+/* ---------------------------------------------------------------- */
+/* 6. OWN INVENTORY -- damage that never came from a party           */
+/* ---------------------------------------------------------------- */
+
+export function ownLossByReason(d: Dataset) {
+  const map = new Map<string, { qty: number; value: number }>();
+  d.records.forEach((r) => {
+    const label = REASON_LABELS[r.reason];
+    const e = map.get(label) ?? { qty: 0, value: 0 };
+    e.qty += r.quantity;
+    e.value += r.costValue;
+    map.set(label, e);
+  });
+  return Array.from(map.entries())
+    .map(([reason, v]) => ({ reason, ...v }))
+    .sort((a, b) => b.value - a.value);
+}
+
+export function ownLossByResponsible(d: Dataset) {
+  const map = new Map<string, number>();
+  d.records.forEach((r) => map.set(r.responsibleParty, (map.get(r.responsibleParty) ?? 0) + r.costValue));
+  return Array.from(map.entries())
+    .map(([party, value]) => ({ party, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+/* ---------------------------------------------------------------- */
+/* 7. TREND -- the last N months                                     */
+/* ---------------------------------------------------------------- */
+
+export function monthlyTrend(d: Dataset, months = 6) {
+  const keys: { key: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i--) {
+    const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    keys.push({
+      key: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`,
+      label: dt.toLocaleString("en-IN", { month: "short" }),
+    });
+  }
+  const monthOf = (iso: string) => iso.slice(0, 7);
+
+  return keys.map(({ key, label }) => {
+    const collected = d.collections.filter((c) => monthOf(c.collectedDate) === key);
+    const ids = new Set(collected.map((c) => c.id));
+    const sent = d.dispatches.filter((x) => monthOf(x.sentDate) === key);
+    const settled = d.dispatches.filter((x) => x.settledDate && monthOf(x.settledDate) === key);
+    return {
+      month: label,
+      collectedBags: collected.length,
+      countedPieces: d.countLines.filter((l) => ids.has(l.collectionId)).reduce((s, l) => s + l.quantity, 0),
+      claimed: sent.reduce((s, x) => s + x.claimedValue, 0),
+      received: settled.reduce((s, x) => s + (x.receivedValue ?? 0), 0),
+    };
+  });
+}
