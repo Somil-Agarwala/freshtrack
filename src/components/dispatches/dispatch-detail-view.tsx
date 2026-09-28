@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 import { StatCard } from "@/components/ui/stat-card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { bagCollectionIds } from "@/lib/bag-packing";
 import { DISPATCH_STATUS_LABELS, DISPATCH_STATUS_TONE } from "@/lib/constants";
 import { exportDispatch } from "@/lib/export";
 import { distributors } from "@/lib/mock-data";
@@ -18,7 +19,7 @@ import { useStore } from "@/lib/store";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 
 export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
-  const { dispatches, companies, sortedBags, collections, recordSettlement } = useStore();
+  const { dispatches, companies, sortedBags, collections, products, recordSettlement, markDispatch } = useStore();
   const [receivedInput, setReceivedInput] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -44,10 +45,23 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
   function handleSettle() {
     const value = Number(receivedInput);
     if (!Number.isFinite(value) || value < 0) return;
-    recordSettlement(dispatch!.id, value);
+    if (!recordSettlement(dispatch!.id, value)) return;
     setReceivedInput("");
-    setNotice("Settlement recorded.");
+    flash("Settlement recorded.");
+  }
+
+  function flash(message: string) {
+    setNotice(message);
     window.setTimeout(() => setNotice(null), 4000);
+  }
+
+  function handleUnderReview() {
+    if (markDispatch(dispatch!.id, "under_review")) flash("Marked as under review by the factory.");
+  }
+
+  function handleReject() {
+    if (!window.confirm(`Mark ${dispatch!.dispatchNumber} as rejected? It will be recorded as settled at ₹0.`)) return;
+    if (markDispatch(dispatch!.id, "rejected")) flash("Marked as rejected.");
   }
 
   return (
@@ -68,7 +82,7 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
             {companies.find((c) => c.id === dispatch.companyId)?.name} factory
           </p>
         </div>
-        <Button variant="outline" onClick={() => exportDispatch({ dispatch, bags, collections, distributors, companies })}>
+        <Button variant="outline" onClick={() => exportDispatch({ dispatch, bags, collections, distributors, products, companies })}>
           <Download className="h-4 w-4" /> Download report
         </Button>
       </div>
@@ -91,7 +105,7 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
           <p className="mt-1 text-sm text-ink-dim">
             Enter what the factory actually paid. A short payment is kept visible as partially settled rather than overwriting the original claim.
           </p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="flex-1 sm:max-w-xs">
               <Label htmlFor="received">Received value (₹)</Label>
               <Input
@@ -104,6 +118,10 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
               />
             </div>
             <Button onClick={handleSettle} disabled={receivedInput === ""}>Save settlement</Button>
+            {dispatch.status === "sent" && (
+              <Button variant="outline" onClick={handleUnderReview}>Mark under review</Button>
+            )}
+            <Button variant="danger" onClick={handleReject}>Mark rejected</Button>
           </div>
         </div>
       )}
@@ -131,7 +149,7 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
                 {bags.map((bag) => {
                   const parties = Array.from(
                     new Set(
-                      bag.sourceCollectionIds
+                      bagCollectionIds(bag)
                         .map((id) => collections.find((c) => c.id === id))
                         .map((c) => distributors.find((d) => d.id === c?.distributorId)?.name)
                         .filter((n): n is string => Boolean(n))

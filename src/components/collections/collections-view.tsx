@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { COLLECTION_STATUS_LABELS } from "@/lib/constants";
 import { exportCollections } from "@/lib/export";
 import { distributors } from "@/lib/mock-data";
+import { pendingQuantity } from "@/lib/bag-packing";
 import { useStore } from "@/lib/store";
 import { formatCurrency, formatNumber, pluralize } from "@/lib/utils";
 import type { CollectionStatus } from "@/types";
@@ -60,7 +61,7 @@ export function CollectionsView() {
   }, [enriched, statusFilter, companyFilter, partyFilter, search]);
 
   const uncountedCount = enriched.filter((c) => c.status === "uncounted").length;
-  const awaitingPackPieces = countLines.filter((l) => !l.packed).reduce((sum, l) => sum + l.quantity, 0);
+  const awaitingPackPieces = countLines.reduce((sum, l) => sum + pendingQuantity(l), 0);
   const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
 
   function toggleSelect(id: string) {
@@ -89,12 +90,17 @@ export function CollectionsView() {
   function handleDelete() {
     const count = selectedIds.size;
     const ok = window.confirm(
-      `Delete ${count} ${pluralize(count, "collection bag")}? Any counted lines inside will be removed too. This cannot be undone.`
+      `Delete ${count} ${pluralize(count, "collection bag")}? Any counted lines inside will be removed too. Bags whose pieces are still in sorted bags are kept. This cannot be undone.`
     );
     if (!ok) return;
-    deleteCollections(Array.from(selectedIds));
+    const result = deleteCollections(Array.from(selectedIds));
     setSelectedIds(new Set());
-    flash(`${count} ${pluralize(count, "collection bag")} deleted.`);
+    flash(
+      `${result.deleted} ${pluralize(result.deleted, "collection bag")} deleted.` +
+        (result.blocked.length > 0
+          ? ` ${result.blocked.length} kept because their pieces are in sorted bags: ${result.blocked.slice(0, 5).join(", ")}${result.blocked.length > 5 ? "…" : ""}.`
+          : "")
+    );
   }
 
   return (

@@ -45,12 +45,25 @@ export function DispatchesView() {
   }
 
   function handleDelete() {
-    const count = selectedIds.size;
-    if (!window.confirm(`Delete ${count} ${pluralize(count, "dispatch", "dispatches")}? This cannot be undone.`)) return;
-    deleteDispatches(Array.from(selectedIds));
+    // Unsettled dispatches are cancelled (bags go back to ready); settled,
+    // part-settled and rejected ones are cleared together with their bags.
+    const selected = dispatches.filter((d) => selectedIds.has(d.id));
+    const open = selected.filter((d) => d.status === "sent" || d.status === "under_review").length;
+    const closed = selected.length - open;
+    const parts = [
+      open > 0 ? `${open} unsettled ${pluralize(open, "dispatch", "dispatches")} will be cancelled and their bags returned to "Ready to send".` : "",
+      closed > 0 ? `${closed} finished ${pluralize(closed, "dispatch", "dispatches")} will be cleared along with their bags.` : "",
+    ].filter(Boolean);
+    if (!window.confirm(`${parts.join(" ")} This cannot be undone.`)) return;
+
+    const result = deleteDispatches(Array.from(selectedIds));
     setSelectedIds(new Set());
-    setNotice(`${count} ${pluralize(count, "dispatch", "dispatches")} deleted.`);
-    window.setTimeout(() => setNotice(null), 4000);
+    const summary = [
+      result.cancelled > 0 ? `${result.cancelled} cancelled, ${result.bagsReturned} ${pluralize(result.bagsReturned, "bag")} back to ready` : "",
+      result.cleared > 0 ? `${result.cleared} cleared with ${result.bagsRemoved} ${pluralize(result.bagsRemoved, "bag")}` : "",
+    ].filter(Boolean);
+    setNotice(`${summary.join("; ")}.`);
+    window.setTimeout(() => setNotice(null), 5000);
   }
 
   return (

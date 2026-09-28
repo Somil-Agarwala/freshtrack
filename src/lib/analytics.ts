@@ -1,4 +1,4 @@
-import { BAG_CAPACITY, buildMrpTiers } from "./bag-packing";
+import { BAG_CAPACITY, buildMrpTiers, pendingQuantity } from "./bag-packing";
 import { formatCurrency, formatNumber } from "./utils";
 import { REASON_LABELS } from "./constants";
 import type {
@@ -74,7 +74,7 @@ export interface PipelineStage {
 
 export function pipeline(d: Dataset): PipelineStage[] {
   const uncounted = d.collections.filter((c) => c.status === "uncounted");
-  const unpacked = d.countLines.filter((l) => !l.packed);
+  const unpacked = d.countLines.filter((l) => pendingQuantity(l) > 0);
   const ready = d.sortedBags.filter((b) => b.status === "ready");
   const openDispatches = d.dispatches.filter((x) => x.status === "sent" || x.status === "under_review");
 
@@ -90,8 +90,8 @@ export function pipeline(d: Dataset): PipelineStage[] {
     {
       stage: "Counted, not packed",
       bags: new Set(unpacked.map((l) => l.collectionId)).size,
-      pieces: unpacked.reduce((s, l) => s + l.quantity, 0),
-      value: unpacked.reduce((s, l) => s + l.quantity * l.mrp, 0),
+      pieces: unpacked.reduce((s, l) => s + pendingQuantity(l), 0),
+      value: unpacked.reduce((s, l) => s + pendingQuantity(l) * l.mrp, 0),
       href: "/sorted-bags",
     },
     {

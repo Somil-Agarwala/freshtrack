@@ -9,13 +9,14 @@ import type {
   SortedBag,
   UserAccount,
 } from "@/types";
+import { toDayString } from "./utils";
 
 // Dates are generated relative to "today" so sample data always looks
 // current, however long after cloning this someone runs it.
 function daysFromNow(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  return toDayString(d);
 }
 
 export const companies: Company[] = [
@@ -60,25 +61,34 @@ export const collectionBags: CollectionBag[] = [
 
 export const countLines: CountLine[] = [
   // c1 and c2 (Cadbury) are already packed into the dispatched bags below.
-  { id: "cl1", collectionId: "c1", companyId: "co1", productId: "p1", mrp: 10, quantity: 820, packed: true },
-  { id: "cl2", collectionId: "c1", companyId: "co1", productId: "p3", mrp: 10, quantity: 540, packed: true },
-  { id: "cl3", collectionId: "c2", companyId: "co1", productId: "p3", mrp: 10, quantity: 610, packed: true },
-  { id: "cl4", collectionId: "c2", companyId: "co1", productId: "p1", mrp: 10, quantity: 430, packed: true },
+  { id: "cl1", collectionId: "c1", companyId: "co1", productId: "p1", mrp: 10, quantity: 820, packedQuantity: 820 },
+  { id: "cl2", collectionId: "c1", companyId: "co1", productId: "p3", mrp: 10, quantity: 540, packedQuantity: 540 },
+  { id: "cl3", collectionId: "c2", companyId: "co1", productId: "p3", mrp: 10, quantity: 610, packedQuantity: 610 },
+  { id: "cl4", collectionId: "c2", companyId: "co1", productId: "p1", mrp: 10, quantity: 430, packedQuantity: 430 },
   // c3 (Cadbury) and c4 (Haldirams) are counted but NOT packed -- these
   // feed the packing screen, and prove the company boundary holds because
   // both contain MRP 10 pieces that must not pool together.
-  { id: "cl5", collectionId: "c3", companyId: "co1", productId: "p1", mrp: 10, quantity: 460, packed: false },
-  { id: "cl6", collectionId: "c3", companyId: "co1", productId: "p3", mrp: 10, quantity: 380, packed: false },
-  { id: "cl7", collectionId: "c4", companyId: "co2", productId: "p2", mrp: 10, quantity: 520, packed: false },
-  { id: "cl8", collectionId: "c4", companyId: "co2", productId: "p5", mrp: 20, quantity: 290, packed: false },
-  { id: "cl9", collectionId: "c4", companyId: "co2", productId: "p9", mrp: 30, quantity: 240, packed: false },
+  { id: "cl5", collectionId: "c3", companyId: "co1", productId: "p1", mrp: 10, quantity: 460, packedQuantity: 0 },
+  { id: "cl6", collectionId: "c3", companyId: "co1", productId: "p3", mrp: 10, quantity: 380, packedQuantity: 0 },
+  { id: "cl7", collectionId: "c4", companyId: "co2", productId: "p2", mrp: 10, quantity: 520, packedQuantity: 0 },
+  { id: "cl8", collectionId: "c4", companyId: "co2", productId: "p5", mrp: 20, quantity: 290, packedQuantity: 0 },
+  { id: "cl9", collectionId: "c4", companyId: "co2", productId: "p9", mrp: 30, quantity: 240, packedQuantity: 0 },
 ];
 
+// Contents follow the packing algorithm: oldest collection first (c1 before
+// c2), 700 to a bag, a line split across bags where it does not fit.
 export const sortedBags: SortedBag[] = [
-  { id: "sb1", bagNumber: "CAD-M10-2026-0001", companyId: "co1", mrp: 10, pieceCount: 700, isFull: true, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", sourceCollectionIds: ["c1", "c2"] },
-  { id: "sb2", bagNumber: "CAD-M10-2026-0002", companyId: "co1", mrp: 10, pieceCount: 700, isFull: true, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", sourceCollectionIds: ["c1", "c2"] },
-  { id: "sb3", bagNumber: "CAD-M10-2026-0003", companyId: "co1", mrp: 10, pieceCount: 700, isFull: true, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", sourceCollectionIds: ["c1", "c2"] },
-  { id: "sb4", bagNumber: "CAD-M10-2026-0004", companyId: "co1", mrp: 10, pieceCount: 300, isFull: false, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", sourceCollectionIds: ["c1", "c2"] },
+  { id: "sb1", bagNumber: "CAD-M10-2026-0001", companyId: "co1", mrp: 10, pieceCount: 700, isFull: true, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", contents: [{ countLineId: "cl1", collectionId: "c1", productId: "p1", quantity: 700 }] },
+  { id: "sb2", bagNumber: "CAD-M10-2026-0002", companyId: "co1", mrp: 10, pieceCount: 700, isFull: true, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", contents: [
+    { countLineId: "cl1", collectionId: "c1", productId: "p1", quantity: 120 },
+    { countLineId: "cl2", collectionId: "c1", productId: "p3", quantity: 540 },
+    { countLineId: "cl3", collectionId: "c2", productId: "p3", quantity: 40 },
+  ] },
+  { id: "sb3", bagNumber: "CAD-M10-2026-0003", companyId: "co1", mrp: 10, pieceCount: 700, isFull: true, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", contents: [
+    { countLineId: "cl3", collectionId: "c2", productId: "p3", quantity: 570 },
+    { countLineId: "cl4", collectionId: "c2", productId: "p1", quantity: 130 },
+  ] },
+  { id: "sb4", bagNumber: "CAD-M10-2026-0004", companyId: "co1", mrp: 10, pieceCount: 300, isFull: false, createdDate: daysFromNow(-13), status: "dispatched", dispatchId: "dp1", contents: [{ countLineId: "cl4", collectionId: "c2", productId: "p1", quantity: 300 }] },
 ];
 
 export const dispatches: Dispatch[] = [

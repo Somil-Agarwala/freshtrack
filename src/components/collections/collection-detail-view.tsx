@@ -10,6 +10,7 @@ import { Notice } from "@/components/ui/notice";
 import { StatCard } from "@/components/ui/stat-card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { distributors } from "@/lib/mock-data";
+import { pendingQuantity } from "@/lib/bag-packing";
 import { useStore } from "@/lib/store";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { CollectionStatusBadge } from "./collection-status-badge";
@@ -17,7 +18,7 @@ import { CountSheet, type DraftLine } from "./count-sheet";
 
 export function CollectionDetailView({ collectionId }: { collectionId: string }) {
   const router = useRouter();
-  const { collections, companies, countLines, products, saveCount, deleteCollections } = useStore();
+  const { collections, companies, countLines, products, sortedBags, saveCount, deleteCollections } = useStore();
   const [counting, setCounting] = useState(false);
   const [draftLines, setDraftLines] = useState<DraftLine[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -42,6 +43,10 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
   const lines = countLines.filter((l) => l.collectionId === collection.id);
   const totalPieces = lines.reduce((sum, l) => sum + l.quantity, 0);
   const totalValue = lines.reduce((sum, l) => sum + l.quantity * l.mrp, 0);
+  // Once any piece is in a sorted bag the count is locked: changing it would
+  // leave that bag claiming pieces the count no longer shows.
+  const countLocked = lines.some((l) => l.packedQuantity > 0);
+  const inSortedBags = sortedBags.some((b) => b.contents.some((c) => c.collectionId === collectionId));
 
   function startCounting() {
     setDraftLines(lines.map((l) => ({ key: l.id, productId: l.productId, quantity: l.quantity })));
@@ -55,16 +60,20 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
         const product = products.find((p) => p.id === l.productId);
         return { productId: l.productId, mrp: product?.mrp ?? 0, quantity: l.quantity };
       });
-    saveCount(collection!.id, payload);
-    setCounting(false);
-    setNotice("Counted. These pieces are now waiting to be packed into sorted bags.");
+    const result = saveCount(collection!.id, payload);
+    if (result.ok) setCounting(false);
+    flash(result.ok ? "Counted. These pieces are now waiting to be packed into sorted bags." : result.reason);
+  }
+
+  function flash(message: string) {
+    setNotice(message);
     window.setTimeout(() => setNotice(null), 5000);
   }
 
   function handleDelete() {
     if (!window.confirm(`Delete ${collection!.bagNumber}? This cannot be undone.`)) return;
-    deleteCollections([collection!.id]);
-    router.push("/collections");
+    const result = deleteCollections([collection!.id]);
+    if (result.deleted > 0) router.push("/collections");
   }
 
   return (
@@ -86,13 +95,18 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!counting && collection.status !== "packed" && (
+          {!counting && !countLocked && (
             <Button onClick={startCounting}>
               <ClipboardCheck className="h-4 w-4" />
               {collection.status === "uncounted" ? "Start counting" : "Edit count"}
             </Button>
           )}
-          <Button variant="danger" onClick={handleDelete}>
+          <Button
+            variant="danger"
+            onClick={handleDelete}
+            disabled={inSortedBags}
+            title={inSortedBags ? "Its pieces are in sorted bags. Delete or clear those first." : undefined}
+          >
             <Trash2 className="h-4 w-4" /> Delete
           </Button>
         </div>
@@ -160,7 +174,13 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
                     <TableCell className="text-ink-dim">{formatCurrency(line.mrp)}</TableCell>
                     <TableCell className="text-ink">{formatNumber(line.quantity)}</TableCell>
                     <TableCell className="text-ink">{formatCurrency(line.quantity * line.mrp)}</TableCell>
-                    <TableCell className="text-ink-dim">{line.packed ? "Yes" : "Awaiting packing"}</TableCell>
+                    <TableCell className="text-ink-dim">
+                      {pendingQuantity(line) === 0
+                        ? "Yes"
+                        : line.packedQuantity === 0
+                          ? "Awaiting packing"
+                          : `${formatNumber(line.packedQuantity)} packed, ${formatNumber(pendingQuantity(line))} waiting`}
+                    </TableCell>
                   </TableRow>
                 );
               })}

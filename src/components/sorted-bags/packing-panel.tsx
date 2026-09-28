@@ -11,13 +11,15 @@ import { formatCurrency, formatNumber, pluralize } from "@/lib/utils";
  * preview is the point: someone about to create 40 bags should see the
  * split per MRP tier first, not discover it afterwards.
  */
-export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () => void }) {
+export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: (fullBagsOnly: boolean) => void }) {
   const { companies } = useStore();
   if (tiers.length === 0) return null;
 
   const totalBags = tiers.reduce((sum, t) => sum + t.totalBags, 0);
   const totalPieces = tiers.reduce((sum, t) => sum + t.pieces, 0);
   const totalValue = tiers.reduce((sum, t) => sum + t.value, 0);
+  const fullBags = tiers.reduce((sum, t) => sum + t.fullBags, 0);
+  const leftover = tiers.reduce((sum, t) => sum + t.remainder, 0);
 
   return (
     <div className="mb-4 rounded-xl border border-accent/30 bg-accent/[0.06] p-4">
@@ -32,10 +34,23 @@ export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () =
             </p>
             <p className="mt-0.5 text-sm text-ink-dim">
               This will create {totalBags} {pluralize(totalBags, "bag")} at {BAG_CAPACITY} pieces each, grouped by company and MRP, worth {formatCurrency(totalValue)}.
+              Oldest collections are packed first.
             </p>
+            {leftover > 0 && fullBags > 0 && (
+              <p className="mt-1 text-xs text-ink-faint">
+                Or pack only the {fullBags} full {pluralize(fullBags, "bag")} and keep {formatNumber(leftover)} loose pieces waiting to top up the next run.
+              </p>
+            )}
           </div>
         </div>
-        <Button onClick={onPack}>Generate {totalBags} {pluralize(totalBags, "bag")}</Button>
+        <div className="flex flex-wrap gap-2">
+          {leftover > 0 && fullBags > 0 && (
+            <Button variant="outline" onClick={() => onPack(true)}>
+              Full bags only ({fullBags})
+            </Button>
+          )}
+          <Button onClick={() => onPack(false)}>Generate {totalBags} {pluralize(totalBags, "bag")}</Button>
+        </div>
       </div>
 
       <div className="mt-4 overflow-x-auto">

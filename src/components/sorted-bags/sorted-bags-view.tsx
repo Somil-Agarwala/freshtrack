@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { buildMrpTiers } from "@/lib/bag-packing";
+import { bagCollectionIds, buildMrpTiers } from "@/lib/bag-packing";
 import { SORTED_BAG_STATUS_LABELS, SORTED_BAG_STATUS_TONE } from "@/lib/constants";
 import { exportSortedBags } from "@/lib/export";
 import { distributors } from "@/lib/mock-data";
@@ -47,7 +47,7 @@ export function SortedBagsView() {
       const matchesSearch = q === "" || bag.bagNumber.toLowerCase().includes(q);
       const matchesParty =
         partyFilter === "all" ||
-        bag.sourceCollectionIds.some((id) => collections.find((c) => c.id === id)?.distributorId === partyFilter);
+        bagCollectionIds(bag).some((id) => collections.find((c) => c.id === id)?.distributorId === partyFilter);
       return matchesStatus && matchesCompany && matchesMrp && matchesSearch && matchesParty;
     });
   }, [sortedBags, statusFilter, companyFilter, mrpFilter, partyFilter, search, collections]);
@@ -86,19 +86,31 @@ export function SortedBagsView() {
     });
   }
 
-  function handlePack() {
-    const result = packPendingLines();
+  function handlePack(fullBagsOnly: boolean) {
+    const result = packPendingLines({ fullBagsOnly });
     if (result.bagCount === 0) return;
     flash(`${result.bagCount} ${pluralize(result.bagCount, "bag")} generated holding ${formatNumber(result.pieceCount)} pieces.`);
   }
 
   function handleDelete() {
-    const count = selectedIds.size;
-    const ok = window.confirm(`Delete ${count} ${pluralize(count, "bag")}? This cannot be undone.`);
+    // Only ready bags can be deleted. A dispatched bag is at the factory and
+    // leaves the system with its dispatch.
+    const count = selectedReady.length;
+    const dispatchedCount = selectedBags.length - count;
+    if (count === 0) {
+      flash("Dispatched bags cannot be deleted here. Delete or cancel their dispatch instead.");
+      return;
+    }
+    const ok = window.confirm(
+      `Delete ${count} ready ${pluralize(count, "bag")}? Their pieces go back to the packing queue so they can be packed again.` +
+        (dispatchedCount > 0 ? ` ${dispatchedCount} dispatched ${pluralize(dispatchedCount, "bag")} in the selection will be left alone.` : "")
+    );
     if (!ok) return;
-    deleteSortedBags(Array.from(selectedIds));
+    const result = deleteSortedBags(selectedReady.map((b) => b.id));
     setSelectedIds(new Set());
-    flash(`${count} ${pluralize(count, "bag")} deleted.`);
+    flash(
+      `${result.deleted} ${pluralize(result.deleted, "bag")} deleted. ${formatNumber(result.piecesReturned)} pieces are back in the packing queue.`
+    );
   }
 
   function handleDispatch() {
@@ -108,18 +120,20 @@ export function SortedBagsView() {
       `Send ${count} ${pluralize(count, "bag")} to the ${selectedCompanyName} factory? This creates a dispatch record you can download as a report.`
     );
     if (!ok) return;
-    const dispatch = createDispatch(selectedReady.map((b) => b.id));
+    const result = createDispatch(selectedReady.map((b) => b.id));
     setSelectedIds(new Set());
-    if (dispatch) {
-      flash(`${dispatch.dispatchNumber} created with ${dispatch.bagCount} bags worth ${formatCurrency(dispatch.claimedValue)}.`);
+    if (!result.ok) {
+      flash(result.reason);
+      return;
     }
+    const { dispatch } = result;
+    flash(`${dispatch.dispatchNumber} created with ${dispatch.bagCount} bags worth ${formatCurrency(dispatch.claimedValue)}.`);
   }
 
   function handleExport() {
     exportSortedBags({
       bags: filtered,
       collections,
-      countLines,
       distributors,
       products,
       companies,

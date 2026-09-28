@@ -7,7 +7,7 @@ import {
   SORTED_BAG_STATUS_LABELS,
   STATUS_LABELS,
 } from "./constants";
-import { formatDate } from "./utils";
+import { formatDate, today } from "./utils";
 import type {
   CollectionBag,
   Company,
@@ -31,10 +31,49 @@ function download(sheets: { name: string; rows: Row[] }[], filename: string) {
   XLSX.writeFile(workbook, filename);
 }
 
+/** Parties whose pieces are physically in this bag, read from its contents. */
+function partiesIn(bag: SortedBag, collections: CollectionBag[], distributors: Distributor[]): string {
+  const names = bag.contents
+    .map((c) => collections.find((col) => col.id === c.collectionId))
+    .map((col) => distributors.find((d) => d.id === col?.distributorId)?.name)
+    .filter((name): name is string => Boolean(name));
+  return Array.from(new Set(names)).join(", ");
+}
+
+/**
+ * One row per (bag, collection bag, SKU): exactly how many pieces of which
+ * party's stock sit in which sorted bag. Rows for a bag sum to its pieces.
+ */
+function traceabilityRows(
+  bags: SortedBag[],
+  collections: CollectionBag[],
+  distributors: Distributor[],
+  products: Product[],
+  companies: Company[]
+): Row[] {
+  return bags.flatMap((bag) =>
+    bag.contents.map((content) => {
+      const collection = collections.find((c) => c.id === content.collectionId);
+      const product = products.find((p) => p.id === content.productId);
+      return {
+        "Bag Number": bag.bagNumber,
+        Company: companies.find((c) => c.id === bag.companyId)?.name ?? "",
+        "Collection Bag": collection?.bagNumber ?? "",
+        Party: distributors.find((d) => d.id === collection?.distributorId)?.name ?? "",
+        Collected: collection ? formatDate(collection.collectedDate) : "",
+        SKU: product?.sku ?? "",
+        Product: product?.name ?? "",
+        "MRP (INR)": bag.mrp,
+        Pieces: content.quantity,
+        "Value (INR)": content.quantity * bag.mrp,
+      };
+    })
+  );
+}
+
 interface BagExportParams {
   bags: SortedBag[];
   collections: CollectionBag[];
-  countLines: CountLine[];
   distributors: Distributor[];
   products: Product[];
   companies: Company[];
@@ -47,12 +86,8 @@ interface BagExportParams {
  * total. Sheet 3 traces every bag back to the party it came from, which
  * is what settles disputes about whose stock was in which bag.
  */
-export function exportSortedBags({ bags, collections, countLines, distributors, products, companies, filterLabel }: BagExportParams) {
+export function exportSortedBags({ bags, collections, distributors, products, companies, filterLabel }: BagExportParams) {
   const manifest: Row[] = bags.map((bag) => {
-    const parties = bag.sourceCollectionIds
-      .map((id) => collections.find((c) => c.id === id))
-      .map((c) => distributors.find((d) => d.id === c?.distributorId)?.name)
-      .filter((name): name is string => Boolean(name));
     return {
       "Bag Number": bag.bagNumber,
       Company: companies.find((c) => c.id === bag.companyId)?.name ?? "",
@@ -62,7 +97,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       "Full Bag": bag.isFull ? "Yes" : "Part-filled",
       Status: SORTED_BAG_STATUS_LABELS[bag.status],
       Created: formatDate(bag.createdDate),
-      Parties: Array.from(new Set(parties)).join(", "),
+      Parties: partiesIn(bag, collections, distributors),
     };
   });
 
@@ -94,25 +129,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
     "Claim Value (INR)": bags.reduce((sum, b) => sum + b.pieceCount * b.mrp, 0),
   });
 
-  const includedCollectionIds = new Set(bags.flatMap((b) => b.sourceCollectionIds));
-  const traceability: Row[] = countLines
-    .filter((line) => includedCollectionIds.has(line.collectionId))
-    .map((line) => {
-      const collection = collections.find((c) => c.id === line.collectionId);
-      const distributor = distributors.find((d) => d.id === collection?.distributorId);
-      const product = products.find((p) => p.id === line.productId);
-      return {
-        "Collection Bag": collection?.bagNumber ?? "",
-        Company: companies.find((c) => c.id === line.companyId)?.name ?? "",
-        Party: distributor?.name ?? "",
-        Collected: collection ? formatDate(collection.collectedDate) : "",
-        SKU: product?.sku ?? "",
-        Product: product?.name ?? "",
-        "MRP (INR)": line.mrp,
-        Pieces: line.quantity,
-        "Value (INR)": line.quantity * line.mrp,
-      };
-    });
+  const traceability = traceabilityRows(bags, collections, distributors, products, companies);
 
   const suffix = filterLabel ? `-${filterLabel.replace(/\s+/g, "-").toLowerCase()}` : "";
   download(
@@ -121,7 +138,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       { name: "MRP Summary", rows: summary },
       { name: "Traceability", rows: traceability },
     ],
-    `bag-report${suffix}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    `bag-report${suffix}-${today()}.xlsx`
   );
 }
 
@@ -131,12 +148,14 @@ export function exportDispatch({
   bags,
   collections,
   distributors,
+  products,
   companies,
 }: {
   dispatch: Dispatch;
   bags: SortedBag[];
   collections: CollectionBag[];
   distributors: Distributor[];
+  products: Product[];
   companies: Company[];
 }) {
   const header: Row[] = [
@@ -149,26 +168,21 @@ export function exportDispatch({
     { Field: "Received Value (INR)", Value: dispatch.receivedValue ?? "Not settled yet" },
   ];
 
-  const manifest: Row[] = bags.map((bag) => {
-    const parties = bag.sourceCollectionIds
-      .map((id) => collections.find((c) => c.id === id))
-      .map((c) => distributors.find((d) => d.id === c?.distributorId)?.name)
-      .filter((name): name is string => Boolean(name));
-    return {
-      "Bag Number": bag.bagNumber,
-      "MRP (INR)": bag.mrp,
-      Pieces: bag.pieceCount,
-      "Claim Value (INR)": bag.pieceCount * bag.mrp,
-      Parties: Array.from(new Set(parties)).join(", "),
-    };
-  });
+  const manifest: Row[] = bags.map((bag) => ({
+    "Bag Number": bag.bagNumber,
+    "MRP (INR)": bag.mrp,
+    Pieces: bag.pieceCount,
+    "Claim Value (INR)": bag.pieceCount * bag.mrp,
+    Parties: partiesIn(bag, collections, distributors),
+  }));
 
   download(
     [
       { name: "Dispatch Summary", rows: header },
       { name: "Bag Manifest", rows: manifest },
+      { name: "Traceability", rows: traceabilityRows(bags, collections, distributors, products, companies) },
     ],
-    `${dispatch.dispatchNumber}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    `${dispatch.dispatchNumber}-${today()}.xlsx`
   );
 }
 
@@ -201,7 +215,7 @@ export function exportCollections({
     };
   });
 
-  download([{ name: "Collections", rows }], `collections-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  download([{ name: "Collections", rows }], `collections-${today()}.xlsx`);
 }
 
 /** Own-inventory damage records as currently filtered on screen. */
@@ -235,7 +249,7 @@ export function exportRecords({
     };
   });
 
-  download([{ name: "Damage Records", rows }], `damage-records-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  download([{ name: "Damage Records", rows }], `damage-records-${today()}.xlsx`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -331,6 +345,6 @@ export function exportAnalytics(d: AnalyticsDataset) {
       { name: "Own Loss By Reason", rows: ownLoss },
       { name: "Own Loss By Party", rows: responsible },
     ],
-    `freshtrack-analytics-${new Date().toISOString().slice(0, 10)}.xlsx`
+    `freshtrack-analytics-${today()}.xlsx`
   );
 }

@@ -111,11 +111,27 @@ export interface CountLine {
   /** Snapshotted at count time so later MRP changes cannot rewrite history. */
   mrp: number;
   quantity: number;
-  /** Set once these pieces have been packed into a SortedBag. */
-  packed: boolean;
+  /**
+   * How many of `quantity` are already inside sorted bags. A line can be
+   * partly packed (a "full bags only" run leaves the remainder waiting), so
+   * this is a count rather than a yes/no flag. Pending = quantity - this.
+   */
+  packedQuantity: number;
 }
 
 export type SortedBagStatus = "ready" | "dispatched";
+
+/**
+ * Exactly which pieces went into a sorted bag: one entry per count line it
+ * drew from. Collection and product are copied in so the record survives
+ * even if the collection is later deleted.
+ */
+export interface BagContent {
+  countLineId: string;
+  collectionId: string;
+  productId: string;
+  quantity: number;
+}
 
 /**
  * A packed bag destined for the factory. Holds exactly one MRP tier and
@@ -133,8 +149,8 @@ export interface SortedBag {
   createdDate: string;
   status: SortedBagStatus;
   dispatchId?: string;
-  /** Collection bags whose pieces ended up in here, for traceability. */
-  sourceCollectionIds: string[];
+  /** Exactly which collection bags and SKUs filled this bag. Sums to pieceCount. */
+  contents: BagContent[];
 }
 
 export type DispatchStatus = "sent" | "under_review" | "partially_settled" | "settled" | "rejected";
