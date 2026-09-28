@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   collectionBags as seedCollections,
   companies as seedCompanies,
@@ -10,7 +10,15 @@ import {
   records as seedRecords,
   sortedBags as seedSortedBags,
 } from "./mock-data";
-import { buildMrpTiers, nextCollectionNumber, nextDispatchNumber, packTiersIntoBags } from "./bag-packing";
+import {
+  buildMrpTiers,
+  issueCollectionNumbers,
+  issueDispatchNumber,
+  peekCollectionNumbers,
+  packTiersIntoBags,
+  seedSequence,
+  type SequenceState,
+} from "./bag-packing";
 import { today } from "./utils";
 import type { CollectionBag, Company, CountLine, DamageRecord, Dispatch, Product, SortedBag } from "@/types";
 
@@ -37,6 +45,8 @@ interface StoreValue {
 
   addProduct: (product: Omit<Product, "id">) => Product;
   addCollections: (input: { companyId: string; distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => CollectionBag[];
+  /** What the next `count` collection numbers would be, without consuming them. */
+  previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => string[];
   deleteCollections: (ids: string[]) => void;
   saveCount: (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => void;
   packPendingForCompany: (companyId: string) => { bagCount: number; pieceCount: number };
@@ -60,6 +70,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dispatches, setDispatches] = useState<Dispatch[]>(seedDispatches);
   const [records, setRecords] = useState<DamageRecord[]>(seedRecords);
 
+  /**
+   * Forward-only numbering counters, seeded once from the numbers already
+   * present so seed rows are never re-issued. Held in a ref rather than state
+   * because it is not rendered and every mutation must see the latest value
+   * immediately -- a stale render would hand out a duplicate number.
+   */
+  const sequenceRef = useRef<SequenceState | null>(null);
+  if (sequenceRef.current === null) {
+    const state: SequenceState = {};
+    seedCompanies.forEach((company) => {
+      const years = new Set<number>();
+      const collect = (dates: string[]) => dates.forEach((d) => years.add(new Date(d).getFullYear()));
+      collect(seedCollections.filter((c) => c.companyId === company.id).map((c) => c.collectedDate));
+      collect(seedSortedBags.filter((b) => b.companyId === company.id).map((b) => b.createdDate));
+      collect(seedDispatches.filter((d) => d.companyId === company.id).map((d) => d.sentDate));
+      years.add(new Date().getFullYear());
+
+      years.forEach((year) => {
+        seedSequence(state, company.id, "COL", year, seedCollections.filter((c) => c.companyId === company.id).map((c) => c.bagNumber));
+        seedSequence(state, company.id, "BAG", year, seedSortedBags.filter((b) => b.companyId === company.id).map((b) => b.bagNumber));
+        seedSequence(state, company.id, "DSP", year, seedDispatches.filter((d) => d.companyId === company.id).map((d) => d.dispatchNumber));
+      });
+    });
+    sequenceRef.current = state;
+  }
+  const sequence = sequenceRef.current;
+
   const addProduct = useCallback((product: Omit<Product, "id">) => {
     const created: Product = { ...product, id: `p-${Date.now()}` };
     setProducts((prev) => [...prev, created]);
@@ -74,13 +111,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const safeCount = Math.max(1, Math.floor(bagCount));
       const stamp = Date.now();
       const code = companies.find((c) => c.id === input.companyId)?.code ?? "GEN";
-      const existingForCompany = collections.filter((c) => c.companyId === input.companyId).length;
+      // Numbers come from the forward-only counter, so deleting records can
+      // never cause a number to be handed out a second time.
+      const numbers = issueCollectionNumbers(code, input.companyId, input.collectedDate, sequence, safeCount);
 
       const created: CollectionBag[] = Array.from({ length: safeCount }, (_, index) => ({
         // Index is part of the id because Date.now() returns the same
         // value for every bag created inside one loop.
         id: `c-${stamp}-${index}`,
-        bagNumber: nextCollectionNumber(code, existingForCompany + index, input.collectedDate),
+        bagNumber: numbers[index],
         companyId: input.companyId,
         distributorId: input.distributorId,
         collectedDate: input.collectedDate,
@@ -94,7 +133,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCollections((prev) => [...created.slice().reverse(), ...prev]);
       return created;
     },
-    [collections, companies]
+    [companies, sequence]
+  );
+
+  const previewCollectionNumbers = useCallback(
+    (companyId: string, collectedDate: string, count: number) => {
+      const code = companies.find((c) => c.id === companyId)?.code ?? "GEN";
+      return peekCollectionNumbers(code, companyId, collectedDate, sequence, Math.max(1, Math.floor(count)));
+    },
+    [companies, sequence]
   );
 
   const deleteCollections = useCallback((ids: string[]) => {
@@ -137,7 +184,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (eligible.length === 0) return { bagCount: 0, pieceCount: 0 };
 
       const tiers = buildMrpTiers(eligible);
-      const created = packTiersIntoBags(tiers, sortedBags, companies, today());
+      const created = packTiersIntoBags(tiers, companies, today(), sequence);
       const eligibleIds = new Set(eligible.map((l) => l.id));
       const touchedCollectionIds = new Set(eligible.map((l) => l.collectionId));
 
@@ -158,7 +205,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         pieceCount: created.reduce((sum, b) => sum + b.pieceCount, 0),
       };
     },
-    [countLines, sortedBags, companies]
+    [countLines, companies, sequence]
   );
 
   const packPendingLines = useCallback(() => packLines(() => true), [packLines]);
@@ -186,11 +233,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (selected.some((b) => b.companyId !== companyId)) return null;
 
       const code = companies.find((c) => c.id === companyId)?.code ?? "GEN";
-      const existingForCompany = dispatches.filter((d) => d.companyId === companyId).length;
 
       const dispatch: Dispatch = {
         id: `dp-${Date.now()}`,
-        dispatchNumber: nextDispatchNumber(code, existingForCompany, today()),
+        dispatchNumber: issueDispatchNumber(code, companyId, today(), sequence),
         companyId,
         sentDate: today(),
         bagCount: selected.length,
@@ -205,7 +251,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       return dispatch;
     },
-    [dispatches, sortedBags, companies]
+    [sortedBags, companies, sequence]
   );
 
   const recordSettlement = useCallback((dispatchId: string, receivedValue: number) => {
@@ -250,6 +296,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       records,
       addProduct,
       addCollections,
+      previewCollectionNumbers,
       deleteCollections,
       saveCount,
       packPendingLines,
@@ -271,6 +318,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       records,
       addProduct,
       addCollections,
+      previewCollectionNumbers,
       deleteCollections,
       saveCount,
       packPendingLines,

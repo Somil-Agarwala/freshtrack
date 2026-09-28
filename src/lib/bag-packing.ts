@@ -3,6 +3,70 @@ import type { Company, CountLine, SortedBag } from "@/types";
 /** Pieces per sorted bag. Change here and every projection follows. */
 export const BAG_CAPACITY = 700;
 
+/**
+ * Last sequence number issued per company, per year.
+ *
+ * Numbering MUST come from a counter that only ever moves forward -- never
+ * from how many records exist, and never from the highest surviving record.
+ * Both of those break on deletion: clearing 500 claimed bags would hand a
+ * fresh bag a number the factory has already seen against an older claim,
+ * so two different physical bags would share one number in factory records.
+ *
+ * Key format: `<companyId>:<kind>:<year>`.
+ *
+ * When Supabase is wired up this becomes a counter table (or one Postgres
+ * sequence per company), so it survives a full wipe of the record tables.
+ */
+export type SequenceState = Record<string, number>;
+
+export type SequenceKind = "COL" | "BAG" | "DSP";
+
+function seqKey(companyId: string, kind: SequenceKind, year: number): string {
+  return `${companyId}:${kind}:${year}`;
+}
+
+/** Trailing `-<year>-<seq>` that every number in this file ends with. */
+const NUMBER_TAIL = /-(\d{4})-(\d+)$/;
+
+/**
+ * Takes the next `count` numbers for a company and advances the counter.
+ * Mutates `state` deliberately: the caller persists it, so a number is never
+ * handed out twice, even after records are deleted.
+ */
+export function takeSequence(
+  state: SequenceState,
+  companyId: string,
+  kind: SequenceKind,
+  year: number,
+  count = 1
+): number[] {
+  const key = seqKey(companyId, kind, year);
+  const start = state[key] ?? 0;
+  const issued = Array.from({ length: count }, (_, i) => start + 1 + i);
+  state[key] = start + count;
+  return issued;
+}
+
+/**
+ * Seeds the counter from numbers that already exist, so pre-existing records
+ * (seed data, or rows loaded from the database) are never re-issued.
+ */
+export function seedSequence(
+  state: SequenceState,
+  companyId: string,
+  kind: SequenceKind,
+  year: number,
+  existingNumbers: string[]
+): void {
+  const key = seqKey(companyId, kind, year);
+  const highest = existingNumbers.reduce((max, value) => {
+    const match = value.match(NUMBER_TAIL);
+    if (!match || Number(match[1]) !== year) return max;
+    return Math.max(max, Number(match[2]));
+  }, 0);
+  state[key] = Math.max(state[key] ?? 0, highest);
+}
+
 export interface MrpTier {
   companyId: string;
   mrp: number;
@@ -18,11 +82,11 @@ export interface MrpTier {
 /**
  * Groups unpacked count lines into COMPANY + MRP tiers.
  *
- * Company is the hard boundary: each company settles its own claim at its
- * own factory, so pieces never pool across companies no matter how well
- * the MRP matches. Within one company, pieces DO pool across parties,
- * because that is what fills a bag to capacity instead of leaving a
- * part-filled bag per party. Traceability survives via sourceCollectionIds.
+ * Company is the hard boundary: each company settles its own claim at its own
+ * factory, so pieces never pool across companies however well the MRP matches.
+ * Within one company, pieces DO pool across parties, because that is what
+ * fills a bag to capacity instead of leaving a part-filled bag per party.
+ * Traceability survives through sourceCollectionIds.
  */
 export function buildMrpTiers(lines: CountLine[]): MrpTier[] {
   const tiers = new Map<string, { companyId: string; mrp: number; pieces: number; collections: Set<string> }>();
@@ -60,33 +124,32 @@ function codeFor(companies: Company[], companyId: string): string {
 }
 
 /**
- * Turns tiers into concrete SortedBag rows. Bag numbers lead with the
- * company code and carry the MRP tier (CAD-M10-2026-0008), so someone
- * holding the physical bag can read both off the label without a lookup.
- * Sequence numbers run per company, not globally.
+ * Turns tiers into concrete SortedBag rows. Bag numbers lead with the company
+ * code and carry the MRP tier (CAD-M10-2026-0008), so someone holding the
+ * physical bag reads both off the label without a lookup.
  */
 export function packTiersIntoBags(
   tiers: MrpTier[],
-  existingBags: SortedBag[],
   companies: Company[],
-  dateStr: string
+  dateStr: string,
+  sequence: SequenceState
 ): SortedBag[] {
   const year = new Date(dateStr).getFullYear();
   const bags: SortedBag[] = [];
 
-  // Per-company running sequence, seeded from what already exists.
-  const sequences = new Map<string, number>();
-  existingBags.forEach((bag) => {
-    sequences.set(bag.companyId, (sequences.get(bag.companyId) ?? 0) + 1);
-  });
-
   tiers.forEach((tier) => {
     const code = codeFor(companies, tier.companyId);
+    // Take every number this tier needs in one go, so a concurrent tier
+    // cannot interleave and produce a duplicate.
+    const bagsNeeded = Math.ceil(tier.pieces / BAG_CAPACITY);
+    const seqs = takeSequence(sequence, tier.companyId, "BAG", year, bagsNeeded);
+
     let remaining = tier.pieces;
+    let index = 0;
     while (remaining > 0) {
       const pieceCount = Math.min(BAG_CAPACITY, remaining);
-      const seq = (sequences.get(tier.companyId) ?? 0) + 1;
-      sequences.set(tier.companyId, seq);
+      const seq = seqs[index];
+      index += 1;
 
       bags.push({
         id: `sb-${tier.companyId}-${year}-${seq}`,
@@ -106,16 +169,47 @@ export function packTiersIntoBags(
   return bags;
 }
 
-/** Per-company collection number, e.g. CAD-COL-2026-0042. */
-export function nextCollectionNumber(companyCode: string, existingCountForCompany: number, dateStr: string): string {
+/**
+ * Issues `count` collection numbers for a company, e.g. CAD-COL-2026-0042,
+ * advancing the counter so none can be handed out twice.
+ */
+export function issueCollectionNumbers(
+  companyCode: string,
+  companyId: string,
+  dateStr: string,
+  sequence: SequenceState,
+  count = 1
+): string[] {
   const year = new Date(dateStr).getFullYear();
-  return `${companyCode}-COL-${year}-${String(existingCountForCompany + 1).padStart(4, "0")}`;
+  return takeSequence(sequence, companyId, "COL", year, count).map(
+    (seq) => `${companyCode}-COL-${year}-${String(seq).padStart(4, "0")}`
+  );
 }
 
-/** Per-company dispatch number, e.g. CAD-DSP-2026-0007. */
-export function nextDispatchNumber(companyCode: string, existingCountForCompany: number, dateStr: string): string {
+/** Issues one dispatch number, e.g. CAD-DSP-2026-0007. */
+export function issueDispatchNumber(
+  companyCode: string,
+  companyId: string,
+  dateStr: string,
+  sequence: SequenceState
+): string {
   const year = new Date(dateStr).getFullYear();
-  return `${companyCode}-DSP-${year}-${String(existingCountForCompany + 1).padStart(4, "0")}`;
+  const [seq] = takeSequence(sequence, companyId, "DSP", year, 1);
+  return `${companyCode}-DSP-${year}-${String(seq).padStart(4, "0")}`;
+}
+
+/**
+ * Preview only: what the next `count` numbers WOULD be, without advancing the
+ * counter. The dialog uses this so its preview matches what creation mints.
+ */
+export function peekCollectionNumbers(
+  companyCode: string,
+  companyId: string,
+  dateStr: string,
+  sequence: SequenceState,
+  count = 1
+): string[] {
+  return issueCollectionNumbers(companyCode, companyId, dateStr, { ...sequence }, count);
 }
 
 export function sortedBagValue(bag: SortedBag): number {

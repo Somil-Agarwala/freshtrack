@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { nextCollectionNumber } from "@/lib/bag-packing";
 import { distributors } from "@/lib/mock-data";
 import { useStore } from "@/lib/store";
 import { pluralize, today } from "@/lib/utils";
@@ -26,7 +25,7 @@ export function NewCollectionDialog({
   onClose: () => void;
   onCreated: (message: string) => void;
 }) {
-  const { addCollections, collections, companies } = useStore();
+  const { addCollections, companies, previewCollectionNumbers } = useStore();
   const [companyId, setCompanyId] = useState("");
   const [distributorId, setDistributorId] = useState("");
   const [collectedDate, setCollectedDate] = useState(today());
@@ -42,9 +41,11 @@ export function NewCollectionDialog({
   // to generate 20 bags to find out what they will be called. Numbering
   // runs per company, so the preview needs the chosen company first.
   const company = companies.find((c) => c.id === companyId);
-  const existingForCompany = collections.filter((c) => c.companyId === companyId).length;
-  const firstNumber = company ? nextCollectionNumber(company.code, existingForCompany, collectedDate) : "";
-  const lastNumber = company ? nextCollectionNumber(company.code, existingForCompany + parsedCount - 1, collectedDate) : "";
+  // Preview runs through the same counter as creation, without consuming it,
+  // so what is shown here is exactly what gets minted.
+  const preview = company ? previewCollectionNumbers(companyId, collectedDate, parsedCount) : [];
+  const firstNumber = preview[0] ?? "";
+  const lastNumber = preview[preview.length - 1] ?? "";
 
   function reset() {
     setCompanyId("");
