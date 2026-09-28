@@ -380,7 +380,7 @@ export function AnalyticsView() {
                 panels={store.companies
                   .map((co) => {
                     const scoped = A.scopeToCompany(dataset, co.id);
-                    return { label: co.name, data: A.ownLossByReason(scoped), xKey: "reason", valueKey: "value" };
+                    return { label: co.name, data: A.ownLossByReason(scoped), xKey: "reason" as const, valueKey: "value" as const };
                   })
                   .filter((p) => p.data.length > 0)}
               />

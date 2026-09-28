@@ -17,8 +17,22 @@ import { AXIS_PROPS, GRID, SERIES, TOOLTIP, compactInr, rampStep } from "@/lib/v
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { Empty } from "./primitives";
 
+/**
+ * Charts are generic over the row type. That accepts any row shape --
+ * interfaces included, which have no implicit index signature and so were
+ * rejected by a fixed Record type -- and constrains key props to real field
+ * names, so a typo in xKey becomes a compile error rather than a blank chart.
+ */
+type KeyOf<T> = Extract<keyof T, string>;
+
+/** Reads a field as a number; null or missing becomes 0 for plotting. */
+function num<T>(row: T, key: KeyOf<T>): number {
+  const v = row[key];
+  return typeof v === "number" ? v : Number(v ?? 0);
+}
+
 /** Single-measure vertical bars. One hue; sequential shading optional. */
-export function MagnitudeBars({
+export function MagnitudeBars<T extends object>({
   data,
   xKey,
   valueKey,
@@ -26,15 +40,15 @@ export function MagnitudeBars({
   sequential = false,
   height = 240,
 }: {
-  data: Record<string, string | number>[];
-  xKey: string;
-  valueKey: string;
+  data: T[];
+  xKey: KeyOf<T>;
+  valueKey: KeyOf<T>;
   money?: boolean;
   sequential?: boolean;
   height?: number;
 }) {
   if (data.length === 0) return <Empty message="Nothing to show yet." />;
-  const max = Math.max(...data.map((d) => Number(d[valueKey])), 1);
+  const max = Math.max(...data.map((d) => num(d, valueKey)), 1);
   const fmt = (v: number) => (money ? formatCurrency(v) : formatNumber(v));
 
   return (
@@ -48,7 +62,7 @@ export function MagnitudeBars({
           {/* 4px rounded data-end, anchored to the baseline. */}
           <Bar dataKey={valueKey} radius={[4, 4, 0, 0]} maxBarSize={44}>
             {data.map((d, i) => (
-              <Cell key={i} fill={sequential ? rampStep(Number(d[valueKey]), max) : SERIES[0]} />
+              <Cell key={i} fill={sequential ? rampStep(num(d, valueKey), max) : SERIES[0]} />
             ))}
           </Bar>
         </BarChart>
@@ -61,7 +75,7 @@ export function MagnitudeBars({
  * Two measures of the SAME unit (rupees vs rupees), so one shared axis is
  * correct -- never a second y-scale. Legend is always present for 2 series.
  */
-export function PairedBars({
+export function PairedBars<T extends object>({
   data,
   xKey,
   aKey,
@@ -70,10 +84,10 @@ export function PairedBars({
   bLabel,
   height = 260,
 }: {
-  data: Record<string, string | number>[];
-  xKey: string;
-  aKey: string;
-  bKey: string;
+  data: T[];
+  xKey: KeyOf<T>;
+  aKey: KeyOf<T>;
+  bKey: KeyOf<T>;
   aLabel: string;
   bLabel: string;
   height?: number;
@@ -97,14 +111,14 @@ export function PairedBars({
 }
 
 /** Change over time. 2px lines, >=8px markers, crosshair tooltip. */
-export function TrendLines({
+export function TrendLines<T extends object>({
   data,
   lines,
   money = false,
   height = 260,
 }: {
-  data: Record<string, string | number>[];
-  lines: { key: string; label: string }[];
+  data: T[];
+  lines: { key: KeyOf<T>; label: string }[];
   money?: boolean;
   height?: number;
 }) {
@@ -146,16 +160,16 @@ export function TrendLines({
  * Small multiples: one mini panel per entity, single hue, shared scale.
  * Used instead of a 5+ hue palette, which cannot stay colourblind-safe.
  */
-export function SmallMultiples({
+export function SmallMultiples<T extends object>({
   panels,
   money = false,
 }: {
-  panels: { label: string; data: Record<string, string | number>[]; xKey: string; valueKey: string }[];
+  panels: { label: string; data: T[]; xKey: KeyOf<T>; valueKey: KeyOf<T> }[];
   money?: boolean;
 }) {
   if (panels.length === 0) return <Empty message="Nothing to show yet." />;
   const globalMax = Math.max(
-    ...panels.flatMap((p) => p.data.map((d) => Number(d[p.valueKey]))),
+    ...panels.flatMap((p) => p.data.map((d) => num(d, p.valueKey))),
     1
   );
   return (
