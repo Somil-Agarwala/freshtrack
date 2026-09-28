@@ -1,4 +1,5 @@
-import { BAG_CAPACITY } from "./bag-packing";
+import { BAG_CAPACITY, buildMrpTiers } from "./bag-packing";
+import { formatCurrency, formatNumber } from "./utils";
 import { REASON_LABELS } from "./constants";
 import type {
   CollectionBag,
@@ -418,4 +419,173 @@ export function monthlyTrend(d: Dataset, months = 6) {
       received: settled.reduce((s, x) => s + (x.receivedValue ?? 0), 0),
     };
   });
+}
+
+/* ---------------------------------------------------------------- */
+/* 8. INSIGHTS -- the numbers above, turned into findings            */
+/* ---------------------------------------------------------------- */
+
+export type InsightLevel = "critical" | "warning" | "info" | "good";
+
+export interface Insight {
+  level: InsightLevel;
+  title: string;
+  detail: string;
+  /** Screen where the finding can be acted on. */
+  href: string;
+}
+
+const LEVEL_ORDER: Record<InsightLevel, number> = { critical: 0, warning: 1, info: 2, good: 3 };
+
+/**
+ * Plain-language findings, most urgent first. Each rule reads the same
+ * functions the charts use, so a finding can never disagree with a chart.
+ * Thresholds are deliberately simple so the reason for every line is obvious.
+ */
+export function insights(d: Dataset): Insight[] {
+  const out: Insight[] = [];
+
+  // Money not coming back.
+  claimsByCompany(d).forEach((c) => {
+    const settledClaimed = c.received + c.shortfall;
+    if (settledClaimed <= 0) return;
+    if (c.recoveryPct < 50) {
+      out.push({
+        level: "critical",
+        title:
+          c.recoveryPct < 1
+            ? `${c.company}: nothing recovered on settled claims`
+            : `${c.company}: only ${c.recoveryPct.toFixed(0)}% recovered on settled claims`,
+        detail: `${formatCurrency(settledClaimed)} claimed, ${formatCurrency(c.received)} received. Find out why before the next dispatch.`,
+        href: "/dispatches",
+      });
+    } else if (c.recoveryPct < 95) {
+      out.push({
+        level: "warning",
+        title: `${c.company} is short-paying: ${c.recoveryPct.toFixed(1)}% recovered`,
+        detail: `${formatCurrency(c.shortfall)} lost across settled claims.`,
+        href: "/dispatches",
+      });
+    }
+  });
+
+  const rec = recoveryHeadline(d);
+  if (rec.openCount > 0) {
+    out.push({
+      level: "info",
+      title: `${formatCurrency(rec.openValue)} awaiting settlement`,
+      detail: `${rec.openCount} dispatch${rec.openCount === 1 ? "" : "es"} sent and not yet paid.`,
+      href: "/dispatches",
+    });
+  }
+
+  // Stock stuck before it can be claimed.
+  const stale = countingBacklog(d).filter((b) => b.label === "8-14 days" || b.label === "15+ days");
+  const staleBags = stale.reduce((s, b) => s + b.bags, 0);
+  if (staleBags > 0) {
+    out.push({
+      level: "warning",
+      title: `${staleBags} bag${staleBags === 1 ? "" : "s"} uncounted for over a week`,
+      detail: "Uncounted stock cannot be packed or claimed. Count these first.",
+      href: "/collections",
+    });
+  }
+
+  const uncounted = d.collections.filter((c) => c.status === "uncounted").length;
+  if (uncounted > 0 && staleBags === 0) {
+    out.push({
+      level: "info",
+      title: `${uncounted} bag${uncounted === 1 ? "" : "s"} waiting to be counted`,
+      detail: "All collected within the last week.",
+      href: "/collections",
+    });
+  }
+
+  const tiers = buildMrpTiers(d.countLines);
+  const pendingPieces = tiers.reduce((s, t) => s + t.pieces, 0);
+  if (pendingPieces > 0) {
+    const bags = tiers.reduce((s, t) => s + t.totalBags, 0);
+    out.push({
+      level: "info",
+      title: `${formatNumber(pendingPieces)} counted pieces ready to pack`,
+      detail: `Packing now makes ${bags} bag${bags === 1 ? "" : "s"} worth ${formatCurrency(tiers.reduce((s, t) => s + t.value, 0))}.`,
+      href: "/sorted-bags",
+    });
+  }
+
+  const ready = d.sortedBags.filter((b) => b.status === "ready");
+  if (ready.length > 0) {
+    out.push({
+      level: "info",
+      title: `${ready.length} bag${ready.length === 1 ? "" : "s"} ready for the factory`,
+      detail: `${formatCurrency(ready.reduce((s, b) => s + b.pieceCount * b.mrp, 0))} can be claimed on the next run.`,
+      href: "/sorted-bags",
+    });
+  }
+
+  // Process quality.
+  const fill = bagFill(d);
+  if (fill.bags > 0 && fill.avgFillPct < 85) {
+    out.push({
+      level: "warning",
+      title: `Bags are only ${fill.avgFillPct.toFixed(0)}% full on average`,
+      detail: `${formatNumber(fill.wastedPieces)} pieces of space unused. Packing less often lets tiers fill up.`,
+      href: "/sorted-bags",
+    });
+  }
+
+  partyBreakdown(d).forEach((p) => {
+    if (p.countVariancePct != null && p.countVariancePct <= -10) {
+      out.push({
+        level: "warning",
+        title: `${p.party}: bags came in ${Math.abs(p.countVariancePct).toFixed(0)}% short of the pickup estimate`,
+        detail: "The real count was well below what was noted at pickup. Worth checking at the next collection.",
+        href: "/collections",
+      });
+    }
+  });
+
+  // Where the damage comes from.
+  // Only parties whose stock has actually been counted: an uncounted bag
+  // reads as zero value and would inflate everyone else's share.
+  const parties = partyBreakdown(d).filter((p) => p.value > 0);
+  if (parties.length > 1 && parties[0].sharePct >= 35) {
+    out.push({
+      level: "info",
+      title: `${parties[0].party} accounts for ${parties[0].sharePct.toFixed(0)}% of returns by value`,
+      detail: `${formatCurrency(parties[0].value)} from one party.`,
+      href: "/master-data/distributors",
+    });
+  }
+
+  const sku = topSkus(d, 1)[0];
+  if (sku) {
+    out.push({
+      level: "info",
+      title: `Most-returned product: ${sku.name}`,
+      detail: `${formatNumber(sku.pieces)} pieces, ${formatCurrency(sku.value)} at MRP.`,
+      href: "/master-data/products",
+    });
+  }
+
+  const loss = ownLossByReason(d)[0];
+  if (loss) {
+    out.push({
+      level: "info",
+      title: `Biggest own-stock loss: ${loss.reason}`,
+      detail: `${formatCurrency(loss.value)} at cost across ${formatNumber(loss.qty)} units.`,
+      href: "/records",
+    });
+  }
+
+  if (!out.some((i) => i.level === "critical" || i.level === "warning")) {
+    out.push({
+      level: "good",
+      title: "Nothing needs urgent attention",
+      detail: "Recovery, counting backlog and bag fill are all within range.",
+      href: "/",
+    });
+  }
+
+  return out.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Download, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,22 @@ import { exportAnalytics } from "@/lib/export";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { DataTable, Metric, Panel, RankedBars } from "./primitives";
 import { MagnitudeBars, PairedBars, SmallMultiples, TrendLines } from "./charts";
+import { InsightList } from "./insight-list";
+import { RecentCollections } from "@/components/dashboard/recent-collections";
 
-const TABS = ["Overview", "Claims", "Parties", "Products", "Operations", "Own inventory"] as const;
+const TABS = ["Overview", "Insights", "Claims", "Parties", "Products", "Operations", "Own inventory"] as const;
 type Tab = (typeof TABS)[number];
 
-export function AnalyticsView() {
+export function AnalyticsView({
+  title = "Dashboard",
+  description = "Where everything stands, and what needs attention",
+  primaryAction,
+}: {
+  title?: string;
+  description?: string;
+  /** Rendered after the export buttons, e.g. a "Log collection" link. */
+  primaryAction?: ReactNode;
+}) {
   const store = useStore();
   const [tab, setTab] = useState<Tab>("Overview");
   const [companyId, setCompanyId] = useState<string>("all");
@@ -55,12 +66,14 @@ export function AnalyticsView() {
   const backlog = useMemo(() => A.countingBacklog(d), [d]);
   const byReason = useMemo(() => A.ownLossByReason(d), [d]);
   const byResponsible = useMemo(() => A.ownLossByResponsible(d), [d]);
+  const findings = useMemo(() => A.insights(d), [d]);
+  const urgent = findings.filter((f) => f.level === "critical" || f.level === "warning").length;
 
   return (
     <div>
       <PageHeader
-        title="Analytics"
-        description="Every number the system can derive, grouped by the question it answers"
+        title={title}
+        description={description}
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => setShowTables((s) => !s)}>
@@ -69,6 +82,7 @@ export function AnalyticsView() {
             <Button variant="outline" size="sm" onClick={() => exportAnalytics(d)}>
               <Download className="h-4 w-4" /> Export all
             </Button>
+            {primaryAction}
           </>
         }
       />
@@ -85,6 +99,9 @@ export function AnalyticsView() {
               }`}
             >
               {t}
+              {t === "Insights" && urgent > 0 && (
+                <span className="ml-1.5 rounded-full bg-rose-500/20 px-1.5 text-xs text-rose-300">{urgent}</span>
+              )}
             </button>
           ))}
         </div>
@@ -98,6 +115,17 @@ export function AnalyticsView() {
 
       {tab === "Overview" && (
         <div className="space-y-4">
+          <Panel
+            title="What needs attention"
+            hint={urgent > 0 ? `${urgent} finding${urgent === 1 ? "" : "s"} to act on or watch.` : "The most important findings right now."}
+          >
+            <InsightList items={findings} limit={3} />
+            {findings.length > 3 && (
+              <button onClick={() => setTab("Insights")} className="mt-2 text-sm font-medium text-accent hover:text-accent-hi">
+                See all {findings.length} insights
+              </button>
+            )}
+          </Panel>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Metric label="Claimed all time" value={formatCurrency(recovery.claimedAllTime)} />
             <Metric label="Received" value={formatCurrency(recovery.received)} tone="good" />
@@ -142,6 +170,8 @@ export function AnalyticsView() {
             </Panel>
           </div>
 
+          <RecentCollections />
+
           {showTables && (
             <Panel title="Monthly figures">
               <DataTable
@@ -151,6 +181,12 @@ export function AnalyticsView() {
             </Panel>
           )}
         </div>
+      )}
+
+      {tab === "Insights" && (
+        <Panel title="Insights" hint="Plain-language findings from the numbers on every other tab, most urgent first. Each links to where it can be acted on.">
+          <InsightList items={findings} />
+        </Panel>
       )}
 
       {tab === "Claims" && (

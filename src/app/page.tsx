@@ -1,14 +1,20 @@
-import { PageHeader } from "@/components/ui/page-header";
-import { CompaniesTable } from "@/components/master-data/companies-table";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { AnalyticsView } from "@/components/analytics/analytics-view";
+import { buttonVariants } from "@/components/ui/button";
 
-export default function CompaniesPage() {
+/**
+ * The dashboard is the analytics and insights view. Analytics and Reports
+ * used to be separate pages; their old URLs now redirect here.
+ */
+export default function DashboardPage() {
   return (
-    <div>
-      <PageHeader
-        title="Companies"
-        description="The brands you claim against. Each settles separately, so bags and dispatches never mix companies."
-      />
-      <CompaniesTable />
-    </div>
+    <AnalyticsView
+      primaryAction={
+        <Link href="/collections" className={buttonVariants({ size: "sm" })}>
+          <Plus className="h-4 w-4" /> Log collection
+        </Link>
+      }
+    />
   );
 }
