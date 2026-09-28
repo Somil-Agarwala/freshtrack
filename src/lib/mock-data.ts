@@ -51,8 +51,8 @@ export const distributors: Distributor[] = [
 export const collectionBags: CollectionBag[] = [
   { id: "c1", bagNumber: "CAD-COL-2026-0001", companyId: "co1", distributorId: "d1", collectedDate: daysFromNow(-18), status: "packed", countedDate: daysFromNow(-15) },
   { id: "c2", bagNumber: "CAD-COL-2026-0002", companyId: "co1", distributorId: "d3", collectedDate: daysFromNow(-16), status: "packed", countedDate: daysFromNow(-14) },
-  { id: "c3", bagNumber: "CAD-COL-2026-0003", companyId: "co1", distributorId: "d2", collectedDate: daysFromNow(-9), status: "counted", countedDate: daysFromNow(-6) },
-  { id: "c4", bagNumber: "HLD-COL-2026-0001", companyId: "co2", distributorId: "d4", collectedDate: daysFromNow(-7), status: "counted", countedDate: daysFromNow(-5) },
+  { id: "c3", bagNumber: "CAD-COL-2026-0003", companyId: "co1", distributorId: "d2", collectedDate: daysFromNow(-9), status: "counted", countedDate: daysFromNow(-6), estimatedPieces: 880 },
+  { id: "c4", bagNumber: "HLD-COL-2026-0001", companyId: "co2", distributorId: "d4", collectedDate: daysFromNow(-7), status: "counted", countedDate: daysFromNow(-5), estimatedPieces: 1000 },
   { id: "c5", bagNumber: "UNI-COL-2026-0001", companyId: "co3", distributorId: "d6", collectedDate: daysFromNow(-4), status: "uncounted", estimatedPieces: 600, notes: "Two sealed cartons, not opened yet." },
   { id: "c6", bagNumber: "HLD-COL-2026-0002", companyId: "co2", distributorId: "d1", collectedDate: daysFromNow(-2), status: "uncounted", estimatedPieces: 900 },
   { id: "c7", bagNumber: "CAD-COL-2026-0004", companyId: "co1", distributorId: "d3", collectedDate: daysFromNow(-1), status: "uncounted" },
@@ -82,6 +82,7 @@ export const sortedBags: SortedBag[] = [
 ];
 
 export const dispatches: Dispatch[] = [
+  // Current cycle.
   {
     id: "dp1",
     dispatchNumber: "CAD-DSP-2026-0001",
@@ -94,6 +95,14 @@ export const dispatches: Dispatch[] = [
     status: "partially_settled",
     settledDate: daysFromNow(-3),
   },
+  // Earlier cycles. Bags from these were deleted once the claim settled,
+  // so these rows carry the history on their own.
+  { id: "dp2", dispatchNumber: "HLD-DSP-2026-0001", companyId: "co2", sentDate: daysFromNow(-34), bagCount: 6, pieceCount: 3800, claimedValue: 41000, receivedValue: 41000, status: "settled", settledDate: daysFromNow(-22) },
+  { id: "dp3", dispatchNumber: "CAD-DSP-2026-0002", companyId: "co1", sentDate: daysFromNow(-62), bagCount: 9, pieceCount: 5900, claimedValue: 62500, receivedValue: 55200, status: "partially_settled", settledDate: daysFromNow(-48) },
+  { id: "dp4", dispatchNumber: "UNI-DSP-2026-0001", companyId: "co3", sentDate: daysFromNow(-88), bagCount: 3, pieceCount: 1750, claimedValue: 33500, receivedValue: 33500, status: "settled", settledDate: daysFromNow(-71) },
+  { id: "dp5", dispatchNumber: "HLD-DSP-2026-0002", companyId: "co2", sentDate: daysFromNow(-119), bagCount: 7, pieceCount: 4550, claimedValue: 48200, receivedValue: 44100, status: "partially_settled", settledDate: daysFromNow(-102) },
+  { id: "dp6", dispatchNumber: "RBL-DSP-2026-0001", companyId: "co4", sentDate: daysFromNow(-145), bagCount: 2, pieceCount: 1200, claimedValue: 28800, receivedValue: 0, status: "rejected", settledDate: daysFromNow(-130) },
+  { id: "dp7", dispatchNumber: "CAD-DSP-2026-0003", companyId: "co1", sentDate: daysFromNow(-8), bagCount: 5, pieceCount: 3300, claimedValue: 34500, status: "under_review" },
 ];
 
 export const records: DamageRecord[] = [

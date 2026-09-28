@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  TrendingUp,
   Building2,
   ClipboardList,
   FilePlus,
@@ -58,7 +59,10 @@ export const navSections: NavSection[] = [
   },
   {
     title: "Insights",
-    items: [{ label: "Reports", href: "/reports", icon: BarChart3 }],
+    items: [
+      { label: "Analytics", href: "/analytics", icon: TrendingUp },
+      { label: "Reports", href: "/reports", icon: BarChart3 },
+    ],
   },
   {
     title: "Administration",
