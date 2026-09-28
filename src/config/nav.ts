@@ -1,6 +1,4 @@
 import {
-  BarChart3,
-  TrendingUp,
   Building2,
   ClipboardList,
   FilePlus,
@@ -32,7 +30,7 @@ export interface NavSection {
 export const navSections: NavSection[] = [
   {
     title: "Overview",
-    items: [{ label: "Dashboard", href: "/", icon: LayoutDashboard }],
+    items: [{ label: "Dashboard & insights", href: "/", icon: LayoutDashboard }],
   },
   {
     title: "Claim pipeline",
@@ -55,13 +53,6 @@ export const navSections: NavSection[] = [
       { label: "Companies", href: "/master-data/companies", icon: Building2 },
       { label: "Products", href: "/master-data/products", icon: Package },
       { label: "Parties", href: "/master-data/distributors", icon: Truck },
-    ],
-  },
-  {
-    title: "Insights",
-    items: [
-      { label: "Analytics", href: "/analytics", icon: TrendingUp },
-      { label: "Reports", href: "/reports", icon: BarChart3 },
     ],
   },
   {
