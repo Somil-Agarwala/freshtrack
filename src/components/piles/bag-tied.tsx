@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { inr, num } from "@/lib/format";
+import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { pilesOf } from "@/lib/pipeline";
+import { bagContents, pilesOf } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import { CompanyAvatar, MrpChip, MrpCircle } from "@/components/ft/brand";
 import { ArrowRightIcon, LayersIcon, PrinterIcon, SackIcon } from "@/components/ft/icons";
@@ -14,7 +14,19 @@ import { BigLink, Screen, ScreenBody, ScreenFooter, softButton } from "@/compone
 /** Bag(s) just tied: the label to write or stick on each. */
 export function BagTied() {
   const { t, sub } = useLang();
-  const { sortedBags, companies, countLines } = useStore();
+  const { sortedBags, companies, countLines, collections, distributors } = useStore();
+  // Whose goods are in a bag. Money is tracked per dispatch, not per bag.
+  const partiesIn = (bag: (typeof sortedBags)[number]) => {
+    const names = Array.from(
+      new Set(
+        bagContents(bag, countLines)
+          .map((c) => collections.find((x) => x.id === c.collectionId)?.distributorId)
+          .map((id) => distributors.find((d) => d.id === id)?.name)
+          .filter((n): n is string => !!n)
+      )
+    );
+    return names.length ? `${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ""}` : "—";
+  };
   const ids = (useSearchParams().get("ids") ?? "").split(",").filter(Boolean);
   const bags = ids.map((id) => sortedBags.find((b) => b.id === id)).filter((b): b is NonNullable<typeof b> => !!b);
 
@@ -63,9 +75,9 @@ export function BagTied() {
                   <p className="text-[13px] text-[#4A5260]">पीस · Pieces</p>
                   <p className="font-display text-2xl font-extrabold">{num(bag.pieceCount)}</p>
                 </div>
-                <div className="rounded-xl bg-[#F1F2F5] p-2">
-                  <p className="text-[13px] text-[#4A5260]">क्लेम · Claim</p>
-                  <p className="font-display text-2xl font-extrabold">{inr(bag.pieceCount * bag.mrp)}</p>
+                <div className="min-w-0 rounded-xl bg-[#F1F2F5] p-2">
+                  <p className="text-[13px] text-[#4A5260]">किसका माल · From</p>
+                  <p className="truncate pt-1 text-base font-bold">{partiesIn(bag)}</p>
                 </div>
               </div>
             </div>
@@ -111,7 +123,7 @@ export function BagTied() {
 
       <PrintSheet>
         {bags.map((bag) => (
-          <PrintLabel key={bag.id} number={bag.bagNumber} lines={[`${company?.name} · MRP ₹${bag.mrp}`, `${num(bag.pieceCount)} pcs · ${inr(bag.pieceCount * bag.mrp)}`]} />
+          <PrintLabel key={bag.id} number={bag.bagNumber} lines={[`${company?.name} · MRP ₹${bag.mrp}`, `${num(bag.pieceCount)} pcs · ${partiesIn(bag)}`]} />
         ))}
       </PrintSheet>
     </Screen>

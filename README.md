@@ -127,11 +127,22 @@ leads).
 | 3 Sort | `/count/[bag]/sort` | Which pile each MRP goes on, and whether a pile reached 700 so a bag can be tied. *सुनें* reads it aloud. |
 | Piles | `/piles`, `/piles/tied` | Loose counted pieces per company and MRP. Ties only full 700-piece bags; leftovers stay in the pile unless packed on purpose before a factory run. |
 | 4 Factory | `/send`, `/send/[run]` | One company per run, broken down by MRP, with a dispatch slip to print, save as PDF or send. |
-| 5 Money | `/money` | Claimed, received and pending; record what the factory paid, and short payments show as deductions. |
+| 5 Money | `/money` | Tracked **per dispatch**: what each run claimed and what the factory paid. *By party* splits every run back to the parties whose goods were on it, so each party has its own account (claimed, received, pending, deducted) and a WhatsApp statement. |
 | Owner | `/dashboard` | Where the money is stuck, key numbers, what needs chasing, per-company table, weekly in-vs-counted, damage by party and item, claim age. |
 
 Full records, master data and admin live under **और / More** (top header
 on desktop, the menu button on those pages on a phone).
+
+## Money per party
+
+Bags carry no money of their own. A tied bag records how many pieces came
+from each pickup (`SortedBag.contents`), oldest pickup first, the same order
+the pieces leave the pile. When a run is sent, those pieces are added up per
+party and fixed on the dispatch (`Dispatch.partyShares`), so the split
+survives the bags being cleared out later. Whatever the factory pays for a
+run is shared across its parties in proportion to their claim, and a
+factory deduction is shared the same way (`splitDispatch`, `partyAccounts`
+in `src/lib/pipeline.ts`).
 
 ## Mobile
 

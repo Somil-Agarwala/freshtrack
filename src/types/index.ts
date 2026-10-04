@@ -137,6 +137,25 @@ export interface SortedBag {
   dispatchId?: string;
   /** Collection bags whose pieces ended up in here, for traceability. */
   sourceCollectionIds: string[];
+  /**
+   * How many of the pieces came from each pickup. A bag pools pieces from
+   * several parties, and this is what lets a dispatch's money be split
+   * back to the parties fairly. Missing on old rows, which fall back to
+   * splitting by sourceCollectionIds.
+   */
+  contents?: BagContent[];
+}
+
+export interface BagContent {
+  collectionId: string;
+  pieces: number;
+}
+
+/** One party's part of a dispatch: its pieces and what they claim. */
+export interface PartyShare {
+  distributorId: string;
+  pieces: number;
+  value: number;
 }
 
 export type DispatchStatus = "sent" | "under_review" | "partially_settled" | "settled" | "rejected";
@@ -155,6 +174,12 @@ export interface Dispatch {
   status: DispatchStatus;
   settledDate?: string;
   notes?: string;
+  /**
+   * Whose goods were on this run, fixed when it is sent. Money is tracked
+   * per dispatch; what the factory pays is split across these shares in
+   * proportion to their claim, which gives each party's account.
+   */
+  partyShares?: PartyShare[];
 }
 
 export interface UserAccount {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { shareOnWhatsApp } from "@/lib/device";
 import { fullDate, inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import { dispatchShares } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import type { Company, Dispatch, SortedBag } from "@/types";
 import { CompanyAvatar } from "@/components/ft/brand";
@@ -14,7 +15,7 @@ import { BigLink, Screen, ScreenBody, ScreenFooter } from "@/components/ft/scree
 /** The run has left: the slip to send the factory with the bags. */
 export function SendDone({ dispatchId }: { dispatchId: string }) {
   const { t, lang } = useLang();
-  const { dispatches, companies, sortedBags } = useStore();
+  const { dispatches, companies, sortedBags, collections, countLines, distributors } = useStore();
   const dispatch = dispatches.find((d) => d.id === dispatchId);
   const company = companies.find((c) => c.id === dispatch?.companyId);
 
@@ -32,6 +33,7 @@ export function SendDone({ dispatchId }: { dispatchId: string }) {
 
   const bags = sortedBags.filter((b) => b.dispatchId === dispatch.id);
   const rows = slipRows(bags);
+  const shares = dispatchShares(dispatch, sortedBags, collections, countLines);
 
   function share() {
     const lines = [
@@ -75,6 +77,25 @@ export function SendDone({ dispatchId }: { dispatchId: string }) {
             {t("प्रिंट", "Print")}
           </button>
         </div>
+
+        {shares.length > 0 && (
+          <section className="rounded-2xl border border-line bg-surface px-3.5 py-3">
+            <p className="text-[15px] font-bold">
+              {t("इस गाड़ी में किसका माल", "Whose goods are on this run")} <span className="font-medium text-ink-faint">· {shares.length}</span>
+            </p>
+            <div className="mt-1 flex flex-col divide-y divide-line">
+              {shares.map((s) => (
+                <div key={s.distributorId} className="flex items-center justify-between gap-2 py-2 text-[15px]">
+                  <span className="min-w-0 truncate">{distributors.find((d) => d.id === s.distributorId)?.name ?? "—"}</span>
+                  <span className="shrink-0 text-ink-dim">
+                    {num(s.pieces)} {t("पीस", "pcs")} · <b className="text-ink">{inr(s.value)}</b>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1 text-[13px] text-ink-faint">{t("फैक्ट्री का पैसा इसी हिसाब से हर पार्टी में बँटेगा", "The factory's payment is split across parties in these proportions")}</p>
+          </section>
+        )}
 
         <Link href="/money" className="flex items-center gap-3 rounded-2xl bg-money-tint p-3.5 text-[15px] leading-[1.35] text-money-note">
           <RupeeIcon className="shrink-0 text-money" />

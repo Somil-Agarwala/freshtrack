@@ -3,6 +3,7 @@ import type {
   Company,
   CountLine,
   DamageRecord,
+  PartyShare,
   Dispatch,
   Distributor,
   Product,
@@ -165,6 +166,27 @@ export const sortedBags: SortedBag[] = [
   bag("sb19", "LOT-M5-2026-0002", "co5", 5, 700, -12, ["c13"]),
 ];
 
+/**
+ * Splits a past run's pieces and claim across parties by weight, so the
+ * sample history has per-party accounts. The last party takes the rounding.
+ */
+function shares(weights: [string, number][], pieces: number, value: number): PartyShare[] {
+  const total = weights.reduce((sum, [, w]) => sum + w, 0);
+  let p = 0;
+  let v = 0;
+  return weights.map(([distributorId, w], i) => {
+    const last = i === weights.length - 1;
+    const share = {
+      distributorId,
+      pieces: last ? pieces - p : Math.round((pieces * w) / total),
+      value: last ? value - v : Math.round((value * w) / total),
+    };
+    p += share.pieces;
+    v += share.value;
+    return share;
+  });
+}
+
 export const dispatches: Dispatch[] = [
   // Current cycle.
   {
@@ -178,19 +200,20 @@ export const dispatches: Dispatch[] = [
     receivedValue: 21600,
     status: "partially_settled",
     settledDate: daysFromNow(-3),
+    partyShares: shares([["d1", 1360], ["d3", 1040]], 2400, 24000),
   },
-  { id: "dp7", dispatchNumber: "CAD-DSP-2026-0003", companyId: "co1", sentDate: daysFromNow(-8), bagCount: 5, pieceCount: 3300, claimedValue: 34500, status: "under_review" },
-  { id: "dp8", dispatchNumber: "HLD-DSP-2026-0003", companyId: "co2", sentDate: daysFromNow(-52), bagCount: 18, pieceCount: 8840, claimedValue: 88400, status: "under_review" },
-  { id: "dp9", dispatchNumber: "UNI-DSP-2026-0002", companyId: "co3", sentDate: daysFromNow(-34), bagCount: 12, pieceCount: 6400, claimedValue: 112000, receivedValue: 80000, status: "partially_settled", settledDate: daysFromNow(-2) },
-  { id: "dp10", dispatchNumber: "RBL-DSP-2026-0002", companyId: "co4", sentDate: daysFromNow(-41), bagCount: 1, pieceCount: 480, claimedValue: 60000, status: "sent" },
-  { id: "dp11", dispatchNumber: "LOT-DSP-2026-0001", companyId: "co5", sentDate: daysFromNow(-12), bagCount: 6, pieceCount: 3900, claimedValue: 35000, status: "sent" },
+  { id: "dp7", dispatchNumber: "CAD-DSP-2026-0003", companyId: "co1", sentDate: daysFromNow(-8), bagCount: 5, pieceCount: 3300, claimedValue: 34500, status: "under_review", partyShares: shares([["d1", 2], ["d2", 1], ["d3", 1]], 3300, 34500) },
+  { id: "dp8", dispatchNumber: "HLD-DSP-2026-0003", companyId: "co2", sentDate: daysFromNow(-52), bagCount: 18, pieceCount: 8840, claimedValue: 88400, status: "under_review", partyShares: shares([["d3", 3], ["d4", 2], ["d1", 1]], 8840, 88400) },
+  { id: "dp9", dispatchNumber: "UNI-DSP-2026-0002", companyId: "co3", sentDate: daysFromNow(-34), bagCount: 12, pieceCount: 6400, claimedValue: 112000, receivedValue: 80000, status: "partially_settled", settledDate: daysFromNow(-2), partyShares: shares([["d4", 2], ["d6", 1]], 6400, 112000) },
+  { id: "dp10", dispatchNumber: "RBL-DSP-2026-0002", companyId: "co4", sentDate: daysFromNow(-41), bagCount: 1, pieceCount: 480, claimedValue: 60000, status: "sent", partyShares: shares([["d1", 1]], 480, 60000) },
+  { id: "dp11", dispatchNumber: "LOT-DSP-2026-0001", companyId: "co5", sentDate: daysFromNow(-12), bagCount: 6, pieceCount: 3900, claimedValue: 35000, status: "sent", partyShares: shares([["d6", 1]], 3900, 35000) },
   // Earlier cycles. Bags from these were deleted once the claim settled,
   // so these rows carry the history on their own.
-  { id: "dp2", dispatchNumber: "HLD-DSP-2026-0001", companyId: "co2", sentDate: daysFromNow(-34), bagCount: 6, pieceCount: 3800, claimedValue: 41000, receivedValue: 41000, status: "settled", settledDate: daysFromNow(-22) },
-  { id: "dp3", dispatchNumber: "CAD-DSP-2026-0002", companyId: "co1", sentDate: daysFromNow(-62), bagCount: 9, pieceCount: 5900, claimedValue: 62500, receivedValue: 55200, status: "partially_settled", settledDate: daysFromNow(-48) },
-  { id: "dp4", dispatchNumber: "UNI-DSP-2026-0001", companyId: "co3", sentDate: daysFromNow(-88), bagCount: 3, pieceCount: 1750, claimedValue: 33500, receivedValue: 33500, status: "settled", settledDate: daysFromNow(-71) },
-  { id: "dp5", dispatchNumber: "HLD-DSP-2026-0002", companyId: "co2", sentDate: daysFromNow(-119), bagCount: 7, pieceCount: 4550, claimedValue: 48200, receivedValue: 44100, status: "partially_settled", settledDate: daysFromNow(-102) },
-  { id: "dp6", dispatchNumber: "RBL-DSP-2026-0001", companyId: "co4", sentDate: daysFromNow(-145), bagCount: 2, pieceCount: 1200, claimedValue: 28800, receivedValue: 0, status: "rejected", settledDate: daysFromNow(-130) },
+  { id: "dp2", dispatchNumber: "HLD-DSP-2026-0001", companyId: "co2", sentDate: daysFromNow(-34), bagCount: 6, pieceCount: 3800, claimedValue: 41000, receivedValue: 41000, status: "settled", settledDate: daysFromNow(-22), partyShares: shares([["d1", 1], ["d4", 1]], 3800, 41000) },
+  { id: "dp3", dispatchNumber: "CAD-DSP-2026-0002", companyId: "co1", sentDate: daysFromNow(-62), bagCount: 9, pieceCount: 5900, claimedValue: 62500, receivedValue: 55200, status: "partially_settled", settledDate: daysFromNow(-48), partyShares: shares([["d1", 3], ["d2", 2], ["d3", 1]], 5900, 62500) },
+  { id: "dp4", dispatchNumber: "UNI-DSP-2026-0001", companyId: "co3", sentDate: daysFromNow(-88), bagCount: 3, pieceCount: 1750, claimedValue: 33500, receivedValue: 33500, status: "settled", settledDate: daysFromNow(-71), partyShares: shares([["d6", 1], ["d4", 1]], 1750, 33500) },
+  { id: "dp5", dispatchNumber: "HLD-DSP-2026-0002", companyId: "co2", sentDate: daysFromNow(-119), bagCount: 7, pieceCount: 4550, claimedValue: 48200, receivedValue: 44100, status: "partially_settled", settledDate: daysFromNow(-102), partyShares: shares([["d3", 1], ["d1", 1]], 4550, 48200) },
+  { id: "dp6", dispatchNumber: "RBL-DSP-2026-0001", companyId: "co4", sentDate: daysFromNow(-145), bagCount: 2, pieceCount: 1200, claimedValue: 28800, receivedValue: 0, status: "rejected", settledDate: daysFromNow(-130), partyShares: shares([["d2", 1]], 1200, 28800) },
 ];
 
 export const records: DamageRecord[] = [

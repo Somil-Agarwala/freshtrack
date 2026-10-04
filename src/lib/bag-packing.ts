@@ -1,4 +1,4 @@
-import type { Company, CountLine, SortedBag } from "@/types";
+import type { BagContent, Company, CountLine, SortedBag } from "@/types";
 
 /** Pieces per sorted bag. Change here and every projection follows. */
 export const BAG_CAPACITY = 700;
@@ -214,4 +214,39 @@ export function peekCollectionNumbers(
 
 export function sortedBagValue(bag: SortedBag): number {
   return bag.pieceCount * bag.mrp;
+}
+
+/**
+ * Records which pickups each new bag's pieces came from. Bags of one
+ * company + MRP are filled in the order they were created, from `lines`
+ * oldest pickup first -- the same order the pieces were taken from the
+ * pile. `collectedOn` maps a collection id to its pickup date.
+ */
+export function fillBagContents(bags: SortedBag[], lines: CountLine[], collectedOn: Map<string, string>): SortedBag[] {
+  const queues = new Map<string, { collectionId: string; left: number }[]>();
+  lines
+    .slice()
+    .sort((a, b) => (collectedOn.get(a.collectionId) ?? "").localeCompare(collectedOn.get(b.collectionId) ?? "") || a.id.localeCompare(b.id))
+    .forEach((line) => {
+      const key = `${line.companyId}::${line.mrp}`;
+      const queue = queues.get(key) ?? [];
+      queue.push({ collectionId: line.collectionId, left: line.quantity });
+      queues.set(key, queue);
+    });
+
+  return bags.map((bag) => {
+    const queue = queues.get(`${bag.companyId}::${bag.mrp}`) ?? [];
+    const byCollection = new Map<string, number>();
+    let need = bag.pieceCount;
+    while (need > 0 && queue.length > 0) {
+      const head = queue[0];
+      const take = Math.min(need, head.left);
+      byCollection.set(head.collectionId, (byCollection.get(head.collectionId) ?? 0) + take);
+      head.left -= take;
+      need -= take;
+      if (head.left === 0) queue.shift();
+    }
+    const contents: BagContent[] = Array.from(byCollection, ([collectionId, pieces]) => ({ collectionId, pieces }));
+    return contents.length ? { ...bag, contents, sourceCollectionIds: contents.map((c) => c.collectionId) } : bag;
+  });
 }

@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { daysSince, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { BAG_CAPACITY, mrpBreakdown, readyBags, sumValue } from "@/lib/pipeline";
+import { BAG_CAPACITY, mrpBreakdown, partySharesForBags, readyBags, sumValue } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MrpCircle } from "@/components/ft/brand";
@@ -17,7 +17,7 @@ export function SendFactory() {
   const router = useRouter();
   const params = useSearchParams();
   const { t, sub, lang } = useLang();
-  const { companies, sortedBags, createDispatch } = useStore();
+  const { companies, sortedBags, createDispatch, collections, countLines, distributors } = useStore();
   const ready = useMemo(() => readyBags(sortedBags), [sortedBags]);
   const withBags = companies.filter((c) => ready.some((b) => b.companyId === c.id));
   const countFor = (id: string) => ready.filter((b) => b.companyId === id).length;
@@ -35,6 +35,7 @@ export function SendFactory() {
   const selected = bags.filter((b) => !removed.has(b.id));
   const pieces = selected.reduce((s, b) => s + b.pieceCount, 0);
   const value = sumValue(selected);
+  const shares = partySharesForBags(selected, collections, countLines);
 
   function pickCompany(id: string) {
     setChosen(id);
@@ -100,6 +101,24 @@ export function SendFactory() {
                   </div>
                 ))}
               </div>
+
+              {shares.length > 0 && (
+                <>
+                  <p className="mx-0.5 text-base font-bold">
+                    {t("किसका माल जा रहा है", "Whose goods are going")} <span className="font-medium text-ink-faint">· {shares.length}</span>
+                  </p>
+                  <div className="flex flex-col divide-y divide-line rounded-2xl bg-surface px-3.5">
+                    {shares.map((s) => (
+                      <div key={s.distributorId} className="flex items-center justify-between gap-2 py-2.5 text-[15px]">
+                        <span className="min-w-0 truncate font-semibold">{distributors.find((d) => d.id === s.distributorId)?.name ?? "—"}</span>
+                        <span className="shrink-0 text-ink-dim">
+                          {num(s.pieces)} {t("पीस", "pcs")} · <b className="text-ink">{inr(s.value)}</b>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
               <div className="flex items-center justify-between rounded-2xl border border-line bg-surface px-3.5 py-3">
                 <span className="flex items-center gap-2.5 text-base font-bold">
@@ -169,7 +188,6 @@ export function SendFactory() {
                     {num(bag.pieceCount)} {t("पीस", "pcs")} · {t(`${daysSince(bag.createdDate)} दिन से तैयार`, `ready ${daysSince(bag.createdDate)} days`)}
                   </span>
                 </span>
-                <span className="text-[15px] font-bold">{inr(bag.pieceCount * bag.mrp)}</span>
               </button>
             );
           })}

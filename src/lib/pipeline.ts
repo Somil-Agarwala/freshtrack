@@ -1,7 +1,7 @@
 import { BAG_CAPACITY, buildMrpTiers, type MrpTier } from "./bag-packing";
 import { addDays, daysBetween, daysSince } from "./format";
 import { today } from "./utils";
-import type { CollectionBag, CountLine, Dispatch, SortedBag } from "@/types";
+import type { BagContent, CollectionBag, CountLine, Dispatch, PartyShare, SortedBag } from "@/types";
 
 /**
  * Read-only views over the store that the redesigned screens share, so the
@@ -134,3 +134,114 @@ export function averageDaysToPay(dispatches: Dispatch[], from: string, to = toda
 }
 
 export { BAG_CAPACITY };
+
+/* ------------------------------------------------------------------ */
+/* Money per party                                                     */
+/*                                                                     */
+/* Money is tracked per dispatch. Each dispatch knows whose goods were  */
+/* on it (partyShares); what the factory pays for the run is split      */
+/* across those parties in proportion to their claim.                   */
+/* ------------------------------------------------------------------ */
+
+/** Pieces per pickup in a bag, falling back for rows made before contents existed. */
+export function bagContents(bag: SortedBag, countLines: CountLine[]): BagContent[] {
+  if (bag.contents?.length) return bag.contents;
+  const sources = bag.sourceCollectionIds;
+  if (sources.length === 0) return [];
+  const weight = (id: string) => countLines.filter((l) => l.collectionId === id && l.mrp === bag.mrp && l.packed).reduce((s, l) => s + l.quantity, 0);
+  const weights = sources.map(weight);
+  const total = weights.reduce((s, w) => s + w, 0);
+  let given = 0;
+  return sources.map((collectionId, i) => {
+    const pieces = i === sources.length - 1 ? bag.pieceCount - given : Math.round(bag.pieceCount * (total ? weights[i] / total : 1 / sources.length));
+    given += pieces;
+    return { collectionId, pieces };
+  });
+}
+
+/** Whose goods are in these bags, by party, largest claim first. */
+export function partySharesForBags(bags: SortedBag[], collections: CollectionBag[], countLines: CountLine[]): PartyShare[] {
+  const party = new Map(collections.map((c) => [c.id, c.distributorId]));
+  const shares = new Map<string, PartyShare>();
+  bags.forEach((bag) =>
+    bagContents(bag, countLines).forEach((part) => {
+      const distributorId = party.get(part.collectionId);
+      if (!distributorId) return;
+      const share = shares.get(distributorId) ?? { distributorId, pieces: 0, value: 0 };
+      share.pieces += part.pieces;
+      share.value += part.pieces * bag.mrp;
+      shares.set(distributorId, share);
+    })
+  );
+  return Array.from(shares.values()).sort((a, b) => b.value - a.value);
+}
+
+export function dispatchShares(d: Dispatch, sortedBags: SortedBag[], collections: CollectionBag[], countLines: CountLine[]): PartyShare[] {
+  if (d.partyShares?.length) return d.partyShares;
+  return partySharesForBags(
+    sortedBags.filter((b) => b.dispatchId === d.id),
+    collections,
+    countLines
+  );
+}
+
+/** One party's part of one dispatch, with its slice of the payment. */
+export interface PartyRun {
+  dispatch: Dispatch;
+  share: PartyShare;
+  /** Fraction of the dispatch's claim that is this party's. */
+  ratio: number;
+  received: number;
+  pending: number;
+  deducted: number;
+}
+
+export function splitDispatch(d: Dispatch, shares: PartyShare[]): PartyRun[] {
+  const owed = isAwaitingPayment(d);
+  return shares.map((share) => {
+    const ratio = d.claimedValue ? share.value / d.claimedValue : 0;
+    const received = owed ? 0 : Math.round((d.receivedValue ?? 0) * ratio);
+    return {
+      dispatch: d,
+      share,
+      ratio,
+      received,
+      pending: owed ? share.value : 0,
+      deducted: owed ? 0 : Math.max(0, share.value - received),
+    };
+  });
+}
+
+export interface PartyAccount {
+  distributorId: string;
+  runs: PartyRun[];
+  claimed: number;
+  received: number;
+  pending: number;
+  deducted: number;
+  /** Share of answered claims that was paid, or null with none answered. */
+  recovery: number | null;
+}
+
+/** Every party's account across all dispatches, most money pending first. */
+export function partyAccounts(dispatches: Dispatch[], sortedBags: SortedBag[], collections: CollectionBag[], countLines: CountLine[]): PartyAccount[] {
+  const accounts = new Map<string, PartyAccount>();
+  dispatches.forEach((d) =>
+    splitDispatch(d, dispatchShares(d, sortedBags, collections, countLines)).forEach((run) => {
+      const id = run.share.distributorId;
+      const a = accounts.get(id) ?? { distributorId: id, runs: [], claimed: 0, received: 0, pending: 0, deducted: 0, recovery: null };
+      a.runs.push(run);
+      a.claimed += run.share.value;
+      a.received += run.received;
+      a.pending += run.pending;
+      a.deducted += run.deducted;
+      accounts.set(id, a);
+    })
+  );
+  return Array.from(accounts.values())
+    .map((a) => {
+      const answered = a.claimed - a.pending;
+      return { ...a, runs: a.runs.sort((x, y) => y.dispatch.sentDate.localeCompare(x.dispatch.sentDate)), recovery: answered ? Math.round((a.received / answered) * 100) : null };
+    })
+    .sort((a, b) => b.pending - a.pending || b.claimed - a.claimed);
+}

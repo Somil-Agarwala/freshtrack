@@ -14,6 +14,7 @@ import {
 import {
   BAG_CAPACITY,
   buildMrpTiers,
+  fillBagContents,
   issueCollectionNumbers,
   issueDispatchNumber,
   peekCollectionNumbers,
@@ -21,6 +22,7 @@ import {
   seedSequence,
   type SequenceState,
 } from "./bag-packing";
+import { partySharesForBags } from "./pipeline";
 import { today } from "./utils";
 import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, Product, SortedBag } from "@/types";
 
@@ -218,7 +220,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (eligible.length === 0) return { bagCount: 0, pieceCount: 0, bags: [] };
 
       const tiers = buildMrpTiers(eligible);
-      const created = packTiersIntoBags(tiers, companies, today(), sequence);
+      const collectedOn = new Map(collections.map((c) => [c.id, c.collectedDate]));
+      const created = fillBagContents(packTiersIntoBags(tiers, companies, today(), sequence), eligible, collectedOn);
       const eligibleIds = new Set(eligible.map((l) => l.id));
       const touchedCollectionIds = new Set(eligible.map((l) => l.collectionId));
 
@@ -240,7 +243,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         bags: created,
       };
     },
-    [countLines, companies, sequence]
+    [countLines, collections, companies, sequence]
   );
 
   const tieFullBags = useCallback(
@@ -255,6 +258,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const stamp = Date.now();
       let nextLines = countLines;
       const created: SortedBag[] = [];
+      const packedParts: CountLine[] = [];
 
       tiers.forEach((tier) => {
         let toTake = tier.fullBags * BAG_CAPACITY;
@@ -267,15 +271,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             if (toTake <= 0) return;
             sources.add(line.collectionId);
             if (line.quantity <= toTake) {
-              replaced.set(line.id, [{ ...line, packed: true }]);
+              const packed = { ...line, packed: true };
+              replaced.set(line.id, [packed]);
+              packedParts.push(packed);
               toTake -= line.quantity;
             } else {
               // The bag fills part-way through this line: split it, so the
               // packed part and the loose remainder stay separately counted.
-              replaced.set(line.id, [
-                { ...line, id: `${line.id}-t${stamp}`, quantity: toTake, packed: true },
-                { ...line, quantity: line.quantity - toTake },
-              ]);
+              const packed = { ...line, id: `${line.id}-t${stamp}`, quantity: toTake, packed: true };
+              replaced.set(line.id, [packed, { ...line, quantity: line.quantity - toTake }]);
+              packedParts.push(packed);
               toTake = 0;
             }
           });
@@ -292,15 +297,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         );
       });
 
+      const filled = fillBagContents(created, packedParts, collectedOn);
       setCountLines(nextLines);
-      setSortedBags((prev) => [...prev, ...created]);
+      setSortedBags((prev) => [...prev, ...filled]);
       setCollections((prev) =>
         prev.map((c) => {
           if (c.status !== "counted") return c;
           return nextLines.some((l) => l.collectionId === c.id && !l.packed) ? c : { ...c, status: "packed" };
         })
       );
-      return created;
+      return filled;
     },
     [countLines, collections, companies, sequence]
   );
@@ -340,6 +346,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         pieceCount: selected.reduce((sum, b) => sum + b.pieceCount, 0),
         claimedValue: selected.reduce((sum, b) => sum + b.pieceCount * b.mrp, 0),
         status: "sent",
+        // Fixed now, so each party's account survives the bags later being
+        // cleared out once the claim settles.
+        partyShares: partySharesForBags(selected, collections, countLines),
       };
 
       setDispatches((prev) => [dispatch, ...prev]);
@@ -348,7 +357,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       return dispatch;
     },
-    [sortedBags, companies, sequence]
+    [sortedBags, collections, countLines, companies, sequence]
   );
 
   const recordSettlement = useCallback((dispatchId: string, receivedValue: number) => {
