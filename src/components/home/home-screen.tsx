@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { longDate, lakh, weekdayEn } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { useSettings } from "@/lib/settings";
+import { useSession } from "@/lib/session";
 import { awaitingPayment, fullBagsWaiting, readyBags, staleUncounted, sumValue, STALE_COUNT_DAYS } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import { today } from "@/lib/utils";
@@ -15,7 +15,8 @@ import { LangToggle } from "@/components/layout/lang-toggle";
 /** Phone home: what to do today, in the order the work flows. */
 export function HomeScreen() {
   const { t, lang } = useLang();
-  const { userName } = useSettings();
+  const { user, can } = useSession();
+  const userName = user?.name ?? "";
   const { collections, countLines, sortedBags, dispatches, records } = useStore();
   const toReview = records.filter((r) => OPEN_STATUSES.includes(r.status)).length;
 
@@ -31,7 +32,7 @@ export function HomeScreen() {
   return (
     <div className="mx-auto flex w-full max-w-[600px] flex-col">
       <header className="flex items-center justify-between px-5 pb-2.5 pt-[18px]">
-        <Link href="/dashboard" className="flex items-center gap-3" aria-label={t("डैशबोर्ड खोलें", "Open dashboard")}>
+        <Link href="/more" className="flex items-center gap-3" aria-label={t("खाता और बाकी पेज", "Account and more")}>
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-elevated font-display text-xl font-bold text-count">
             {userName.slice(0, 1)}
           </span>
@@ -159,7 +160,11 @@ export function HomeScreen() {
         <div className="grid grid-cols-2 gap-2.5">
           <QuickTile href="/godown" icon={<WarehouseIcon size={22} />} tone="text-godown" title={t("गोदाम नुकसान", "Godown damage")} detail={toReview ? t(`${toReview} जाँच बाकी`, `${toReview} to review`) : t("सब निपटा", "All reviewed")} />
           <QuickTile href="/money" icon={<RupeeIcon size={22} />} tone="text-money" title={t("हिसाब", "Money")} detail={t("गाड़ी और पार्टी", "By run and party")} />
-          <QuickTile href="/collections" icon={<TruckIcon size={22} />} tone="text-pickup" title={t("सारे बैग", "All bags")} detail={t("हर पिकअप", "Every pickup")} />
+          {can("ownerView") ? (
+            <QuickTile href="/dashboard" icon={<RupeeIcon size={22} />} tone="text-count" title={t("डैशबोर्ड", "Dashboard")} detail={t("पैसा कहाँ अटका", "Where money is stuck")} />
+          ) : (
+            <QuickTile href="/collections" icon={<TruckIcon size={22} />} tone="text-pickup" title={t("सारे बैग", "All bags")} detail={t("हर पिकअप", "Every pickup")} />
+          )}
           <QuickTile href="/more" icon={<MenuIcon size={22} />} tone="text-ink-dim" title={t("और सब", "Everything else")} detail={t("पार्टी, सामान, सेटिंग", "Parties, items, settings")} />
         </div>
       </main>

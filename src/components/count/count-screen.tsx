@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useFlash, useVoiceInput } from "@/lib/device";
 import { inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { CollectionBag, Product } from "@/types";
@@ -59,6 +60,7 @@ function ItemTiles({ bag, draft }: { bag: CollectionBag; draft: Record<string, n
   const { t, sub, lang } = useLang();
   const { products, companies, saveCount, addProduct } = useStore();
   const drafts = useCountDraft();
+  const { can } = useSession();
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [message, flash] = useFlash();
@@ -156,6 +158,7 @@ function ItemTiles({ bag, draft }: { bag: CollectionBag; draft: Record<string, n
               </Link>
             );
           })}
+          {can("addProduct") && (
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -165,6 +168,7 @@ function ItemTiles({ bag, draft }: { bag: CollectionBag; draft: Record<string, n
             {t("नया सामान", "New item")}
             <span className="text-[13px] font-medium text-ink-faint">{sub("सूची में नहीं है?", "Not in the list?")}</span>
           </button>
+          )}
         </div>
       </ScreenBody>
 

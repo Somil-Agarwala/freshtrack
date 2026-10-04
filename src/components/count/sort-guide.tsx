@@ -6,6 +6,7 @@ import { speak, useCanSpeak } from "@/lib/device";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { BAG_CAPACITY, NEAR_FULL, pilesOf } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MrpCircle } from "@/components/ft/brand";
@@ -21,6 +22,7 @@ export function SortGuide({ collectionId }: { collectionId: string }) {
   const { t, lang } = useLang();
   const { collections, companies, countLines, tieFullBags } = useStore();
   const speakable = useCanSpeak();
+  const { can } = useSession();
   const bag = collections.find((c) => c.id === collectionId);
   const company = companies.find((c) => c.id === bag?.companyId);
 
@@ -154,7 +156,7 @@ export function SortGuide({ collectionId }: { collectionId: string }) {
       </ScreenBody>
 
       <ScreenFooter>
-        {bagsToTie > 0 ? (
+        {bagsToTie > 0 && can("tieSend") ? (
           <>
             <BigButton tone="pile" onClick={tie} className="text-[21px]">
               <SackIcon />

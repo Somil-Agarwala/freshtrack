@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useLang } from "@/lib/i18n";
+import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { CheckIcon, FileIcon, SearchIcon } from "./icons";
 
@@ -149,6 +150,8 @@ export function Toggle({ on, onChange, label, detail }: { on: boolean; onChange:
 /** Small "Excel" button for list screens. */
 export function ExportButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
   const { t } = useLang();
+  // Exports carry every rupee figure, so they are the admin's.
+  if (!useSession().can("ownerView")) return null;
   return (
     <button
       type="button"

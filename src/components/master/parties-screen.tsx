@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { initials, lakhShort } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { partyAccounts } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Distributor } from "@/types";
@@ -20,6 +21,7 @@ export function PartiesScreen({ initialSearch = "" }: { initialSearch?: string }
   const { distributors, collections, dispatches, sortedBags, countLines, saveDistributor } = useStore();
   const [query, setQuery] = useState(initialSearch);
   const [editing, setEditing] = useState<Distributor | null>(null);
+  const { can } = useSession();
   const accounts = useMemo(() => partyAccounts(dispatches, sortedBags, collections, countLines), [dispatches, sortedBags, collections, countLines]);
 
   const q = query.trim().toLowerCase();
@@ -33,6 +35,7 @@ export function PartiesScreen({ initialSearch = "" }: { initialSearch?: string }
       <ScreenBody className="gap-3">
         <div className="flex gap-2">
           <SearchBox value={query} onChange={setQuery} placeholder={t("नाम, इलाका या संपर्क…", "Name, area or contact…")} className="flex-1" />
+          {can("addParty") && (
           <button
             type="button"
             onClick={() => setEditing({ id: `d-${Date.now()}`, name: query, contactName: "", phone: "", region: "", isActive: true })}
@@ -41,6 +44,7 @@ export function PartiesScreen({ initialSearch = "" }: { initialSearch?: string }
             <PlusIcon size={20} />
             {t("नई", "New")}
           </button>
+          )}
         </div>
         {list.length === 0 && <EmptyCard title={t("कोई पार्टी नहीं", "No parties")} />}
         <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
@@ -51,7 +55,7 @@ export function PartiesScreen({ initialSearch = "" }: { initialSearch?: string }
             const tel = d.phone.replace(/[^\d+]/g, "");
             return (
               <div key={d.id} className={cn("flex flex-col gap-2.5 rounded-[18px] border border-line bg-surface p-3.5", !d.isActive && "opacity-60")}>
-                <button type="button" onClick={() => setEditing(d)} className="flex w-full items-center gap-3 text-left">
+                <button type="button" disabled={!can("editMaster")} onClick={() => setEditing(d)} className="flex w-full items-center gap-3 text-left">
                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] font-display text-lg font-extrabold" style={{ background: tone.bg, color: tone.fg }}>
                     {initials(d.name)}
                   </span>

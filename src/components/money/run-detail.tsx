@@ -8,6 +8,7 @@ import { exportDispatch } from "@/lib/export";
 import { daysBetween, daysSince, fullDate, inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { dispatchShares, isAwaitingPayment, shortfall, splitDispatch } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { MrpCircle } from "@/components/ft/brand";
 import { PrinterIcon, TruckIcon, WhatsAppIcon } from "@/components/ft/icons";
@@ -23,6 +24,7 @@ export function RunDetail({ dispatchId }: { dispatchId: string }) {
   const { t, lang } = useLang();
   const { dispatches, companies, sortedBags, collections, countLines, distributors, recordSettlement } = useStore();
   const [recording, setRecording] = useState(false);
+  const { can } = useSession();
   const [message, flash] = useFlash();
   const d = dispatches.find((x) => x.id === dispatchId);
   const company = companies.find((c) => c.id === d?.companyId);
@@ -139,7 +141,7 @@ export function RunDetail({ dispatchId }: { dispatchId: string }) {
         </div>
       </ScreenBody>
 
-      {owed && (
+      {owed && can("recordPayment") && (
         <ScreenFooter>
           <BigButton tone="money" onClick={() => setRecording(true)}>
             {t("पैसा मिला? दर्ज करें", "Money came? Record it")}

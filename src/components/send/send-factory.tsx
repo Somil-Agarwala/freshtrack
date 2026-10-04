@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { daysSince, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { BAG_CAPACITY, mrpBreakdown, partySharesForBags, readyBags, sumValue } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MrpCircle } from "@/components/ft/brand";
@@ -16,6 +17,7 @@ import { Dialog } from "@/components/ui/dialog";
 export function SendFactory() {
   const router = useRouter();
   const params = useSearchParams();
+  const { can } = useSession();
   const { t, sub, lang } = useLang();
   const { companies, sortedBags, createDispatch, collections, countLines, distributors } = useStore();
   const ready = useMemo(() => readyBags(sortedBags), [sortedBags]);
@@ -138,7 +140,7 @@ export function SendFactory() {
         )}
       </ScreenBody>
 
-      {company && selected.length > 0 && (
+      {can("tieSend") && company && selected.length > 0 && (
         <ScreenFooter className="py-2.5">
           <BigButton tone="factory" onClick={send} className="flex-col gap-0">
             {t(`${selected.length} बैग फैक्ट्री भेजो`, `Send ${selected.length} bag${selected.length > 1 ? "s" : ""} to the factory`)}

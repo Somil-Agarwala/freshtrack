@@ -7,6 +7,7 @@ import { shareOnWhatsApp, useFlash } from "@/lib/device";
 import { daysBetween, daysSince, fullDate, initials, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { STALE_CLAIM_DAYS, dispatchShares, isAwaitingPayment, partyAccounts, shortfall, splitDispatch, type PartyAccount } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Dispatch, Distributor } from "@/types";
@@ -146,6 +147,7 @@ function RunList({
 }) {
   const { t } = useLang();
   const { companies } = useStore();
+  const canRecord = useSession().can("recordPayment");
   const pending = dispatches.filter(isAwaitingPayment);
 
   // Still owed first, oldest on top; then answered claims, newest first.
@@ -229,12 +231,16 @@ function RunList({
                     {d.status === "under_review" ? t("जाँच में · Under review", "Under review · जाँच में") : t("फैक्ट्री को भेजा · Sent", "Sent · फैक्ट्री को भेजा")}
                     {late && ` — ${t("फैक्ट्री को फ़ोन करें", "call the factory")}`}
                   </p>
-                  <button type="button" onClick={() => onRecord(d)} className="h-[52px] rounded-[14px] bg-money font-display text-lg font-extrabold text-money-ink hover:brightness-110">
-                    {t("पैसा मिला? दर्ज करें", "Money came? Record it")}
-                  </button>
+                  {canRecord ? (
+                    <button type="button" onClick={() => onRecord(d)} className="h-[52px] rounded-[14px] bg-money font-display text-lg font-extrabold text-money-ink hover:brightness-110">
+                      {t("पैसा मिला? दर्ज करें", "Money came? Record it")}
+                    </button>
+                  ) : (
+                    <p className="text-sm text-ink-faint">{t("पैसा आने पर एडमिन दर्ज करेंगे", "The admin records the payment when it arrives")}</p>
+                  )}
                 </>
               )}
-              {compact && (
+              {compact && canRecord && (
                 <button type="button" onClick={() => onRecord(d)} className="self-start text-sm font-bold text-money">
                   {t("पैसा मिला? दर्ज करें", "Money came? Record it")}
                 </button>
@@ -290,6 +296,7 @@ function RunSheet({
   const company = companies.find((c) => c.id === dispatch.companyId);
   const owed = isAwaitingPayment(dispatch);
   const rows = splitDispatch(dispatch, shares);
+  const canRecord = useSession().can("recordPayment");
 
   return (
     <Dialog
@@ -298,7 +305,7 @@ function RunSheet({
       title={dispatch.dispatchNumber}
       description={`${company?.name} · ${fullDate(dispatch.sentDate, lang)} · ${dispatch.bagCount} ${t("बैग", "bags")} · ${num(dispatch.pieceCount)} ${t("पीस", "pcs")}`}
       footer={
-        owed ? (
+        owed && canRecord ? (
           <BigButton tone="money" onClick={onRecord}>
             {t("पैसा मिला? दर्ज करें", "Money came? Record it")}
           </BigButton>

@@ -124,8 +124,8 @@ export const DISPATCH_STATUS_HI: Record<DispatchStatus, string> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, { hi: string; en: string; hiDesc: string; enDesc: string }> = {
-  admin: { hi: "मालिक / एडमिन", en: "Admin", hiDesc: "सब कुछ, यूज़र और सेटिंग भी", enDesc: "Full access, including users and settings" },
-  manager: { hi: "मैनेजर", en: "Manager", hiDesc: "गिनती, बैग, गाड़ी और पैसा दर्ज", enDesc: "Count, tie bags, send runs and record payments" },
-  data_entry: { hi: "एंट्री वाला", en: "Data entry", hiDesc: "पिकअप और गिनती दर्ज करे", enDesc: "Log pickups and count bags" },
+  admin: { hi: "मालिक / एडमिन", en: "Admin", hiDesc: "सब कुछ: पैसा दर्ज, दाम बदलना, हटाना, यूज़र", enDesc: "Everything: payments, prices, deleting, users" },
+  manager: { hi: "गोदाम इंचार्ज", en: "Godown in-charge", hiDesc: "पिकअप, गिनती, बैग बाँधना, गाड़ी भेजना, गोदाम नुकसान", enDesc: "Pickups, counting, tying bags, sending runs, godown damage" },
+  data_entry: { hi: "एंट्री वाला", en: "Data entry", hiDesc: "सिर्फ़ पिकअप, गिनती और गोदाम नुकसान", enDesc: "Only pickups, counting and godown damage" },
   viewer: { hi: "सिर्फ़ देखे", en: "Viewer", hiDesc: "सब देख सकता है, बदल नहीं सकता", enDesc: "Read-only access to everything" },
 };

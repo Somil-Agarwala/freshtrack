@@ -73,6 +73,8 @@ export interface DamageRecord {
   responsibleParty: string;
   hasPhoto: boolean;
   notes?: string;
+  /** User who logged the entry. */
+  loggedBy?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -101,6 +103,9 @@ export interface CollectionBag {
   notes?: string;
   /** Photo taken at pickup. A local object URL until storage is wired up. */
   photoUrl?: string;
+  /** User who logged the pickup, and who counted it. */
+  loggedBy?: string;
+  countedBy?: string;
 }
 
 /** One counted SKU line inside a collection bag. */
@@ -144,6 +149,8 @@ export interface SortedBag {
    * splitting by sourceCollectionIds.
    */
   contents?: BagContent[];
+  /** User who tied the bag. */
+  tiedBy?: string;
 }
 
 export interface BagContent {
@@ -180,6 +187,9 @@ export interface Dispatch {
    * proportion to their claim, which gives each party's account.
    */
   partyShares?: PartyShare[];
+  /** User who sent the run, and who recorded the factory's payment. */
+  sentBy?: string;
+  settledBy?: string;
 }
 
 export interface UserAccount {
@@ -189,4 +199,10 @@ export interface UserAccount {
   role: UserRole;
   isActive: boolean;
   lastActive: string;
+  /**
+   * 4-digit sign-in PIN. Checked in the browser for now, so it only says
+   * who is using the phone; it is not real security until sign-in moves
+   * to the database (Supabase auth).
+   */
+  pin: string;
 }

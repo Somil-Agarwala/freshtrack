@@ -5,19 +5,33 @@ import { BAG_CAPACITY } from "@/lib/bag-packing";
 import { useFlash } from "@/lib/device";
 import { useLang } from "@/lib/i18n";
 import { NEAR_FULL, STALE_CLAIM_DAYS, STALE_COUNT_DAYS, STALE_READY_DAYS } from "@/lib/pipeline";
-import { useSettings } from "@/lib/settings";
+import { useSession } from "@/lib/session";
+import { useStore } from "@/lib/store";
+import { AccountCard } from "@/components/account/account-card";
 import { GearIcon } from "@/components/ft/icons";
 import { Field, inputClass } from "@/components/ft/kit";
 import { BigButton, ListHeader, Screen, ScreenBody } from "@/components/ft/screen";
 import { LangToggle } from "@/components/layout/lang-toggle";
 import { Notice } from "@/components/ui/notice";
 
-/** Your name and language, and the rules the app works by. */
+/** Your account, language, and the rules the app works by. */
 export function SettingsScreen() {
   const { t, sub } = useLang();
-  const { userName, setUserName } = useSettings();
-  const [name, setName] = useState(userName);
+  const { user } = useSession();
+  const { saveUser } = useStore();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
   const [message, flash] = useFlash();
+
+  const digits = (v: string) => v.replace(/\D/g, "").slice(0, 4);
+  const pinError =
+    current.length === 4 && current !== user?.pin
+      ? t("पुराना PIN गलत है", "Current PIN is wrong")
+      : again.length === 4 && again !== next
+        ? t("दोनों नए PIN अलग हैं", "The new PINs do not match")
+        : null;
+  const pinReady = user && current === user.pin && next.length === 4 && next === again && next !== current;
 
   const rules: [string, string, string][] = [
     [t("एक बैग में पीस", "Pieces per bag"), String(BAG_CAPACITY), t("ढेर इतने पीस पर बैग बनता है", "A pile becomes a bag at this many pieces")],
@@ -29,30 +43,49 @@ export function SettingsScreen() {
 
   return (
     <Screen>
-      <ListHeader tone="neutral" icon={<GearIcon size={26} />} title={t("सेटिंग", "Settings")} subtitle={t("आपका नाम, भाषा और नियम", "Your name, language and rules")} />
+      <ListHeader tone="neutral" icon={<GearIcon size={26} />} title={t("सेटिंग", "Settings")} subtitle={t("आपका खाता, भाषा और नियम", "Your account, language and rules")} />
       <ScreenBody className="gap-4">
-        <section className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-4">
-          <Field hi="आपका नाम" en="Your name" hint={t("घर और डैशबोर्ड पर नमस्ते इसी नाम से", "Used in the greeting on home and the dashboard")}>
-            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
+        <AccountCard />
+
+        <section className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-4">
+          <p className="text-[15px] font-bold">
+            {t("अपना PIN बदलें", "Change your PIN")} <span className="font-medium text-ink-faint">· {sub("अपना PIN बदलें", "Change your PIN")}</span>
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <Field hi="पुराना" en="Current">
+              <input className={inputClass} type="password" inputMode="numeric" value={current} onChange={(e) => setCurrent(digits(e.target.value))} />
+            </Field>
+            <Field hi="नया" en="New">
+              <input className={inputClass} type="password" inputMode="numeric" value={next} onChange={(e) => setNext(digits(e.target.value))} />
+            </Field>
+            <Field hi="फिर से" en="Again">
+              <input className={inputClass} type="password" inputMode="numeric" value={again} onChange={(e) => setAgain(digits(e.target.value))} />
+            </Field>
+          </div>
+          {pinError && <p className="text-[15px] font-bold text-danger-soft">{pinError}</p>}
           <BigButton
             tone="money"
             className="h-14 text-lg"
-            disabled={!name.trim() || name.trim() === userName}
+            disabled={!pinReady}
             onClick={() => {
-              setUserName(name);
-              flash(t("नाम सेव हुआ", "Name saved"));
+              if (!user || !pinReady) return;
+              saveUser({ ...user, pin: next });
+              setCurrent("");
+              setNext("");
+              setAgain("");
+              flash(t("नया PIN सेव हुआ", "New PIN saved"));
             }}
           >
-            {t("नाम सेव करें", "Save name")}
+            {t("PIN सेव करें", "Save PIN")}
           </BigButton>
-          <div className="flex items-center justify-between gap-3">
-            <span>
-              <span className="block text-[15px] font-bold">{t("भाषा", "Language")}</span>
-              <span className="text-sm text-ink-dim">{t("कौन सी भाषा बड़ी दिखे", "Which language leads")}</span>
-            </span>
-            <LangToggle />
-          </div>
+        </section>
+
+        <section className="flex items-center justify-between gap-3 rounded-[20px] border border-line bg-surface p-4">
+          <span>
+            <span className="block text-[15px] font-bold">{t("भाषा", "Language")}</span>
+            <span className="text-sm text-ink-dim">{t("कौन सी भाषा बड़ी दिखे", "Which language leads")}</span>
+          </span>
+          <LangToggle />
         </section>
 
         <section className="rounded-[20px] border border-line bg-surface p-4">

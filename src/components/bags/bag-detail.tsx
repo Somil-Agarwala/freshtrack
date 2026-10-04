@@ -7,6 +7,7 @@ import { COLLECTION_STATUS_HI, COLLECTION_STATUS_LABELS } from "@/lib/constants"
 import { daysSince, fullDate, inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { bagContents } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { CompanyAvatar, MrpCircle } from "@/components/ft/brand";
@@ -20,6 +21,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
   const { t, lang } = useLang();
   const { collections, companies, distributors, countLines, products, sortedBags, dispatches, deleteCollections } = useStore();
   const [confirm, setConfirm] = useState(false);
+  const { can } = useSession();
   const bag = collections.find((c) => c.id === collectionId);
 
   if (!bag) {
@@ -134,7 +136,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
           </section>
         )}
 
-        {!anyPacked && (
+        {!anyPacked && can("delete") && (
           <button type="button" onClick={() => setConfirm(true)} className="flex items-center gap-2 self-start py-2 text-[15px] font-bold text-danger-soft">
             <TrashIcon size={18} />
             {t("यह बैग हटाएँ", "Delete this bag")}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLang } from "@/lib/i18n";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
@@ -20,6 +21,7 @@ export function ProductsScreen({ initialSearch = "" }: { initialSearch?: string 
   const [companyId, setCompanyId] = useState("all");
   const [query, setQuery] = useState(initialSearch);
   const [editing, setEditing] = useState<Product | null>(null);
+  const { can } = useSession();
 
   const q = query.trim().toLowerCase();
   const list = products
@@ -39,6 +41,7 @@ export function ProductsScreen({ initialSearch = "" }: { initialSearch?: string 
       <ScreenBody className="gap-3">
         <div className="flex gap-2">
           <SearchBox value={query} onChange={setQuery} placeholder={t("नाम या SKU…", "Name or SKU…")} className="flex-1" />
+          {can("addProduct") && (
           <button
             type="button"
             onClick={() =>
@@ -49,6 +52,7 @@ export function ProductsScreen({ initialSearch = "" }: { initialSearch?: string 
             <PlusIcon size={20} />
             {t("नया", "New")}
           </button>
+          )}
         </div>
         {list.length === 0 && <EmptyCard title={t("कोई सामान नहीं", "No products")} />}
         <div className="grid gap-2 lg:grid-cols-2 [&>*]:min-w-0">
@@ -56,7 +60,7 @@ export function ProductsScreen({ initialSearch = "" }: { initialSearch?: string 
             const company = companies.find((c) => c.id === p.companyId);
             const counted = countLines.filter((l) => l.productId === p.id).reduce((s, l) => s + l.quantity, 0);
             return (
-              <button key={p.id} type="button" onClick={() => setEditing(p)} className={cn("flex items-center gap-3 rounded-[18px] border border-line bg-surface p-3 text-left transition-colors hover:bg-elevated", !p.isActive && "opacity-60")}>
+              <button key={p.id} type="button" disabled={!can("editMaster")} onClick={() => setEditing(p)} className={cn("flex items-center gap-3 rounded-[18px] border border-line bg-surface p-3 text-left transition-colors hover:bg-elevated", !p.isActive && "opacity-60")}>
                 <ProductPicture product={p} className="h-12 w-12 shrink-0" size={24} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[17px] font-bold leading-tight">{p.name}</span>

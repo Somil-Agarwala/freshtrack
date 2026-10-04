@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useFlash, useVoiceInput } from "@/lib/device";
 import { initials } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { CompanyAvatar, partyTone } from "@/components/ft/brand";
 import { ChevronRightIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ft/icons";
@@ -22,6 +23,7 @@ export function PickupParty() {
   const { company } = usePickupParams();
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
+  const { can } = useSession();
   const [message, flash] = useFlash();
   const voice = useVoiceInput(setQuery, lang);
 
@@ -100,6 +102,7 @@ export function PickupParty() {
           {parties.length === 0 && <p className="rounded-2xl bg-surface p-4 text-center text-ink-dim">{t("इस नाम की कोई पार्टी नहीं", "No party with that name")}</p>}
         </div>
 
+        {can("addParty") && (
         <button
           type="button"
           onClick={() => setAdding(true)}
@@ -108,6 +111,7 @@ export function PickupParty() {
           <PlusIcon size={22} />
           {t("नई पार्टी जोड़ें", "Add new party")} · {sub("नई पार्टी जोड़ें", "Add new party")}
         </button>
+        )}
       </ScreenBody>
 
       <NewPartySheet

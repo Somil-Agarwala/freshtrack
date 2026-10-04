@@ -8,6 +8,7 @@ import { exportRecords } from "@/lib/export";
 import { daysSince, fullDate, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { monthStart } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { DamageRecord, ResolutionStatus } from "@/types";
@@ -173,6 +174,7 @@ function RecordSheet({ record, onClose, onStatus, onDelete }: { record: DamageRe
   const { t, lang } = useLang();
   const { products, companies, distributors } = useStore();
   const [confirm, setConfirm] = useState(false);
+  const { can } = useSession();
   const product = products.find((p) => p.id === record.productId);
   const company = companies.find((c) => c.id === record.companyId);
   const party = distributors.find((d) => d.id === record.distributorId);
@@ -216,6 +218,8 @@ function RecordSheet({ record, onClose, onStatus, onDelete }: { record: DamageRe
       </dl>
       {record.notes && <p className="mt-3 rounded-2xl bg-elevated p-3.5 text-[15px] text-ink-soft">{record.notes}</p>}
 
+      {can("reviewGodown") ? (
+        <>
       <p className="mb-2 mt-4 text-[15px] font-bold">{t("अब क्या स्थिति है?", "Where does it stand?")}</p>
       <ChoiceGrid
         tone="godown"
@@ -223,8 +227,15 @@ function RecordSheet({ record, onClose, onStatus, onDelete }: { record: DamageRe
         onChange={onStatus}
         options={(Object.keys(STATUS_HI) as ResolutionStatus[]).map((s) => ({ value: s, label: t(STATUS_HI[s], STATUS_LABELS[s]) }))}
       />
+        </>
+      ) : (
+        <p className="mt-4 rounded-2xl bg-elevated p-3.5 text-[15px]">
+          {t("स्थिति", "Status")}: <b>{t(STATUS_HI[record.status], STATUS_LABELS[record.status])}</b>
+          <span className="block text-sm text-ink-dim">{t("आख़िरी फ़ैसला एडमिन लेंगे", "The admin makes the final call")}</span>
+        </p>
+      )}
 
-      {!confirm && (
+      {!confirm && can("delete") && (
         <button type="button" onClick={() => setConfirm(true)} className={cn("mt-4 flex items-center gap-2 text-[15px] font-bold text-danger-soft")}>
           <TrashIcon size={18} />
           {t("यह एंट्री हटाएँ", "Delete this entry")}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { lakh, lakhShort, longDate, num, shortDate } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { useSettings } from "@/lib/settings";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn, today } from "@/lib/utils";
 import { CompanyAvatar, MrpCircle } from "@/components/ft/brand";
@@ -337,7 +337,7 @@ function BagsChange({ data, long }: { data: Data; long?: boolean }) {
 
 function DesktopDashboard({ data }: { data: Data }) {
   const { t, lang } = useLang();
-  const { userName } = useSettings();
+  const userName = useSession().user?.name ?? "";
   const { period } = useDashboardFilters();
   const monthLabel = period === "month" ? t("इस महीने मिला", "Received this month") : t("90 दिन में मिला", "Received in 90 days");
   const maxBucket = Math.max(1, ...data.buckets.map((b) => b.value));
@@ -531,20 +531,25 @@ function DesktopDashboard({ data }: { data: Data }) {
         <h2 className="mb-3 font-display text-xl font-extrabold">
           {t("आज टीम का काम", "Team today")} <span className="font-sans text-[15px] font-medium text-ink-faint">· {t("Team today", "आज टीम का काम")}</span>
         </h2>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(220px,100%),1fr))] gap-3">
-          <TodayTile tone="bg-pickup-tint text-pickup" letter={t("मा", "P")} title={t("पिकअप", "Pickups")} line={t(`${data.todayWork.pickups} पिकअप · ${data.todayWork.bagsIn} बैग लाए`, `${data.todayWork.pickups} pickups · ${data.todayWork.bagsIn} bags in`)} />
-          <TodayTile tone="bg-count-tint text-count" letter={t("गि", "C")} title={t("गिनती", "Counting")} line={t(`${data.todayWork.counted} बैग गिने`, `${data.todayWork.counted} bags counted`)} />
-          <TodayTile tone="bg-pile-tint text-pile" letter={t("ढे", "T")} title={t("बैग बाँधे", "Bags tied")} line={t(`${data.todayWork.tied} बैग बाँधे`, `${data.todayWork.tied} bags tied`)} />
-          <TodayTile
-            tone="bg-factory-tint text-factory"
-            letter={t("फै", "S")}
-            title={t("फैक्ट्री", "Factory")}
-            line={
-              data.todayWork.sent.length
-                ? t(`${data.todayWork.sent.length} गाड़ी भेजी`, `${data.todayWork.sent.length} run${data.todayWork.sent.length > 1 ? "s" : ""} sent`)
-                : t("आज कोई गाड़ी नहीं", "No run today")
-            }
-          />
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-3">
+          {data.team.map((m) => {
+            const parts = [
+              m.bagsIn ? t(`${m.pickups} पिकअप · ${m.bagsIn} बैग लाए`, `${m.pickups} pickups · ${m.bagsIn} bags in`) : null,
+              m.counted ? t(`${m.counted} बैग गिने`, `${m.counted} bags counted`) : null,
+              m.tied ? t(`${m.tied} बाँधे`, `${m.tied} tied`) : null,
+              m.sent ? t(`${m.sent} गाड़ी भेजी`, `${m.sent} runs sent`) : null,
+              m.godown ? t(`${m.godown} गोदाम एंट्री`, `${m.godown} godown entries`) : null,
+            ].filter(Boolean);
+            return (
+              <TodayTile
+                key={m.user.id}
+                tone={m.user.role === "admin" ? "bg-money-tint text-money" : "bg-count-tint text-count"}
+                letter={m.user.name.slice(0, 1)}
+                title={m.user.name}
+                line={parts.length ? parts.join(" · ") : t("आज अभी कुछ दर्ज नहीं", "Nothing logged yet today")}
+              />
+            );
+          })}
         </div>
       </section>
 

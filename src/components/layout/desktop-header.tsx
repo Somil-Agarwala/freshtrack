@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { siteConfig } from "@/config/site";
 import { stepLinks, type StepTone } from "@/config/nav";
+import { ROLE_LABELS } from "@/lib/constants";
 import { useLang } from "@/lib/i18n";
-import { useSettings } from "@/lib/settings";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MenuIcon, SackIcon } from "@/components/ft/icons";
@@ -30,10 +31,12 @@ const selectClass = "h-10 rounded-[10px] border border-line bg-surface px-2.5 te
 export function DesktopHeader() {
   const pathname = usePathname();
   const { t } = useLang();
-  const { userName } = useSettings();
+  const { user, can, signOut } = useSession();
+  const userName = user?.name ?? "";
   const { companies } = useStore();
   const { companyId, setCompanyId, period, setPeriod } = useDashboardFilters();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const onDashboard = pathname === "/" || pathname === "/dashboard";
 
   return (
@@ -47,6 +50,7 @@ export function DesktopHeader() {
         </Link>
         <nav aria-label="Sections" className="flex flex-1 flex-wrap gap-1">
           {stepLinks.map((link) => {
+            const label = link.href === "/" && !can("ownerView") ? { hi: "घर", en: "Home" } : link;
             const on = link.href === "/" ? onDashboard : link.match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
             return (
               <Link
@@ -55,7 +59,7 @@ export function DesktopHeader() {
                 aria-current={on ? "page" : undefined}
                 className={cn("rounded-[10px] px-3.5 py-2 text-[15px]", LINK_TEXT[link.tone], on ? "bg-raised font-bold" : "font-semibold hover:bg-elevated")}
               >
-                {t(link.hi, link.en)}
+                {t(label.hi, label.en)}
               </Link>
             );
           })}
@@ -69,7 +73,7 @@ export function DesktopHeader() {
             {t("और", "More")}
           </button>
         </nav>
-        {onDashboard && (
+        {onDashboard && can("ownerView") && (
           <>
             <label className="flex items-center gap-2 text-sm text-ink-dim">
               {t("कंपनी", "Company")}
@@ -92,9 +96,32 @@ export function DesktopHeader() {
           </>
         )}
         <LangToggle />
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-elevated font-display font-extrabold text-count" aria-label={userName}>
-          {userName.slice(0, 1)}
-        </span>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setAccountOpen((o) => !o)}
+            aria-expanded={accountOpen}
+            aria-label={userName}
+            className="flex h-10 items-center gap-2 rounded-full bg-elevated pl-1 pr-3 font-bold hover:bg-raised"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-canvas font-display font-extrabold text-count">{userName.slice(0, 1)}</span>
+            {userName}
+          </button>
+          {accountOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setAccountOpen(false)} aria-hidden="true" />
+              <div className="absolute right-0 top-12 z-50 w-56 rounded-2xl border border-line bg-surface p-1.5 shadow-xl">
+                <p className="px-3 pb-1 pt-2 text-sm text-ink-dim">{user && t(ROLE_LABELS[user.role].hi, ROLE_LABELS[user.role].en)}</p>
+                <Link href="/settings" onClick={() => setAccountOpen(false)} className="block rounded-xl px-3 py-2.5 font-semibold hover:bg-elevated">
+                  {t("सेटिंग और PIN", "Settings & PIN")}
+                </Link>
+                <button type="button" onClick={signOut} className="block w-full rounded-xl px-3 py-2.5 text-left font-semibold text-danger-soft hover:bg-elevated">
+                  {t("यूज़र बदलें / बाहर", "Switch user / sign out")}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
       <MoreMenu open={moreOpen} onClose={() => setMoreOpen(false)} />
     </header>

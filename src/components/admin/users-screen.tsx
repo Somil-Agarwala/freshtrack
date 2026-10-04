@@ -27,7 +27,7 @@ export function UsersScreen() {
       <ScreenBody className="gap-3">
         <button
           type="button"
-          onClick={() => setEditing({ id: `u-${Date.now()}`, name: "", email: "", role: "data_entry", isActive: true, lastActive: today() })}
+          onClick={() => setEditing({ id: `u-${Date.now()}`, name: "", email: "", role: "manager", isActive: true, lastActive: today(), pin: "" })}
           className="flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line-strong text-[17px] font-bold text-ink-dim hover:text-ink"
         >
           <PlusIcon size={22} />
@@ -63,7 +63,12 @@ export function UsersScreen() {
             </div>
           ))}
         </div>
-        <p className="mx-0.5 text-sm text-ink-faint">{t("लॉगिन जुड़ने के बाद ये रोल लागू होंगे।", "Roles take effect once sign-in is connected.")}</p>
+        <p className="mx-0.5 text-sm text-ink-faint">
+          {t(
+            "PIN इस फ़ोन/ब्राउज़र में जाँचा जाता है — यह बताता है कौन काम कर रहा है। पक्की सुरक्षा डेटाबेस वाले लॉगिन से आएगी।",
+            "PINs are checked in the browser: they say who is working. Proper security comes with database sign-in."
+          )}
+        </p>
       </ScreenBody>
       {editing && (
         <UserSheet
@@ -83,8 +88,11 @@ export function UsersScreen() {
 
 function UserSheet({ user, isNew, onClose, onSave }: { user: UserAccount; isNew: boolean; onClose: () => void; onSave: (u: UserAccount) => void }) {
   const { t, sub } = useLang();
+  const { users } = useStore();
   const [draft, setDraft] = useState(user);
-  const valid = draft.name.trim() && /\S+@\S+\.\S+/.test(draft.email);
+  // The last active admin can never lock everyone out of admin screens.
+  const lastAdmin = user.role === "admin" && users.filter((u) => u.role === "admin" && u.isActive).length === 1;
+  const valid = draft.name.trim() && /\S+@\S+\.\S+/.test(draft.email) && /^\d{4}$/.test(draft.pin) && (!lastAdmin || (draft.role === "admin" && draft.isActive));
   return (
     <Dialog
       open
@@ -111,7 +119,13 @@ function UserSheet({ user, isNew, onClose, onSave }: { user: UserAccount; isNew:
             options={ROLES.map((r) => ({ value: r, label: t(ROLE_LABELS[r].hi, ROLE_LABELS[r].en), detail: sub(ROLE_LABELS[r].hi, ROLE_LABELS[r].en) }))}
           />
         </Field>
+        <Field hi="4 अंक का PIN" en="4-digit PIN" hint={t("यूज़र इसे सेटिंग में खुद बदल सकता है", "The user can change it in Settings")}>
+          <input className={inputClass} inputMode="numeric" value={draft.pin} onChange={(e) => setDraft({ ...draft, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="1234" />
+        </Field>
         <Toggle on={draft.isActive} onChange={(isActive) => setDraft({ ...draft, isActive })} label={t("चालू है", "Active")} detail={t("बंद यूज़र लॉगिन नहीं कर पाएगा", "Inactive users cannot sign in")} />
+        {lastAdmin && (draft.role !== "admin" || !draft.isActive) && (
+          <p className="text-[15px] font-bold text-danger-soft">{t("कम से कम एक एडमिन चालू रहना चाहिए", "At least one admin must stay active")}</p>
+        )}
       </div>
     </Dialog>
   );

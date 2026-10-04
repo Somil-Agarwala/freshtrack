@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { BAG_CAPACITY, NEAR_FULL, allPiles } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MrpCircle } from "@/components/ft/brand";
@@ -17,6 +18,7 @@ import { Dialog } from "@/components/ui/dialog";
 export function PilesBoard() {
   const router = useRouter();
   const params = useSearchParams();
+  const { can } = useSession();
   const { t, lang } = useLang();
   const { companies, countLines, tieFullBags, packPendingForCompany } = useStore();
   const [confirmLeftovers, setConfirmLeftovers] = useState(false);
@@ -113,7 +115,7 @@ export function PilesBoard() {
           })}
         </div>
 
-        {loose > 0 && (
+        {loose > 0 && can("tieSend") && (
           <button
             type="button"
             onClick={() => setConfirmLeftovers(true)}
@@ -126,7 +128,7 @@ export function PilesBoard() {
         )}
       </ScreenBody>
 
-      {toTie > 0 && (
+      {can("tieSend") && toTie > 0 && (
         <ScreenFooter className="py-2.5">
           <BigButton tone="pile" className="h-[60px]" onClick={() => go(tieFullBags(companyId).map((b) => b.id))}>
             <SackIcon />

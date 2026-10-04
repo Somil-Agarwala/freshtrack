@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Baloo_2, IBM_Plex_Mono, Mukta } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import { LangProvider } from "@/lib/i18n";
-import { SettingsProvider } from "@/lib/settings";
+import { SessionProvider } from "@/lib/session";
 import { StoreProvider } from "@/lib/store";
 import { siteConfig } from "@/config/site";
 import "./globals.css";
@@ -46,9 +46,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans antialiased">
         <StoreProvider>
           <LangProvider>
-            <SettingsProvider>
+            <SessionProvider>
               <AppShell>{children}</AppShell>
-            </SettingsProvider>
+            </SessionProvider>
           </LangProvider>
         </StoreProvider>
       </body>

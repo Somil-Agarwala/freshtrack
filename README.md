@@ -137,6 +137,34 @@ Everything else lives under **और / More**: the header menu on desktop, and
 the *और सब* tile on the phone home screen. `/new-entry`, `/records` and
 `/dispatches` redirect to their new homes so old links keep working.
 
+## Accounts and who can do what
+
+The app opens on an account page: tap your name, enter your 4-digit PIN.
+The choice is remembered on that phone until someone taps *Switch user*.
+
+| Account | Role | Starting PIN |
+| --- | --- | --- |
+| Nikhil | Godown in-charge | 1111 |
+| Debu | Godown in-charge | 2222 |
+| Somil | Admin | 0000 |
+
+Change these after the first sign-in (Users page for the admin, Settings
+for your own).
+
+**Godown in-charge**: pickups, counting, tying bags, sending runs, godown
+damage, adding a new party or item mid-task, and viewing हिसाब.
+**Admin** additionally: recording factory payments, the final status of a
+godown entry, deleting, companies / prices / party edits, the owner
+dashboard, reports and Excel, and users and PINs. The whole split is one
+table in `src/lib/access.ts`.
+
+Every change is stamped with who made it (`loggedBy`, `countedBy`,
+`tiedBy`, `sentBy`, `settledBy`), which feeds *आज टीम का काम* on the
+dashboard.
+
+PINs are checked in the browser, so they tell the app who is working; they
+are not real security until sign-in moves to Supabase auth.
+
 ## Money per party
 
 Bags carry no money of their own. A tied bag records how many pieces came

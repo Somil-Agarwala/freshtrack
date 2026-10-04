@@ -56,6 +56,8 @@ interface StoreValue {
   saveDistributor: (distributor: Distributor) => void;
   saveUser: (user: UserAccount) => void;
   updateRecord: (id: string, patch: Partial<Omit<DamageRecord, "id">>) => void;
+  /** Who is signed in; every change below is stamped with this user id. */
+  setActor: (userId: string | null) => void;
   addProduct: (product: Omit<Product, "id">) => Product;
   addDistributor: (distributor: Omit<Distributor, "id" | "isActive">) => Distributor;
   addCollections: (input: CollectionInput, bagCount: number) => CollectionBag[];
@@ -134,6 +136,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   const sequence = sequenceRef.current;
 
+  // Held in a ref so stamping never re-creates every mutation function.
+  const actorRef = useRef<string | undefined>(undefined);
+  const setActor = useCallback((userId: string | null) => {
+    actorRef.current = userId ?? undefined;
+  }, []);
+
   const addProduct = useCallback((product: Omit<Product, "id">) => {
     const created: Product = { ...product, id: `p-${Date.now()}` };
     setProducts((prev) => [...prev, created]);
@@ -171,6 +179,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         notes: input.notes,
         // One photo usually shows the whole pickup, so every bag carries it.
         photoUrl: input.photoUrl,
+        loggedBy: actorRef.current,
       }));
 
       // Reversed so the highest number ends up at the top of the list,
@@ -214,7 +223,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return [...withoutOld, ...created];
       });
       setCollections((prev) =>
-        prev.map((c) => (c.id === collectionId ? { ...c, status: "counted", countedDate: today() } : c))
+        prev.map((c) => (c.id === collectionId ? { ...c, status: "counted", countedDate: today(), countedBy: actorRef.current } : c))
       );
     },
     [collections]
@@ -230,7 +239,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const tiers = buildMrpTiers(eligible);
       const collectedOn = new Map(collections.map((c) => [c.id, c.collectedDate]));
-      const created = fillBagContents(packTiersIntoBags(tiers, companies, today(), sequence), eligible, collectedOn);
+      const created = fillBagContents(packTiersIntoBags(tiers, companies, today(), sequence), eligible, collectedOn).map((b) => ({ ...b, tiedBy: actorRef.current }));
       const eligibleIds = new Set(eligible.map((l) => l.id));
       const touchedCollectionIds = new Set(eligible.map((l) => l.collectionId));
 
@@ -306,7 +315,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         );
       });
 
-      const filled = fillBagContents(created, packedParts, collectedOn);
+      const filled = fillBagContents(created, packedParts, collectedOn).map((b) => ({ ...b, tiedBy: actorRef.current }));
       setCountLines(nextLines);
       setSortedBags((prev) => [...prev, ...filled]);
       setCollections((prev) =>
@@ -358,6 +367,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Fixed now, so each party's account survives the bags later being
         // cleared out once the claim settles.
         partyShares: partySharesForBags(selected, collections, countLines),
+        sentBy: actorRef.current,
       };
 
       setDispatches((prev) => [dispatch, ...prev]);
@@ -380,6 +390,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               // than silently overwriting what was originally claimed.
               status: receivedValue < d.claimedValue ? "partially_settled" : "settled",
               settledDate: today(),
+              settledBy: actorRef.current,
             }
           : d
       )
@@ -392,7 +403,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addRecord = useCallback((record: Omit<DamageRecord, "id">) => {
-    setRecords((prev) => [{ ...record, id: `r-${Date.now()}` }, ...prev]);
+    setRecords((prev) => [{ ...record, id: `r-${Date.now()}`, loggedBy: actorRef.current }, ...prev]);
   }, []);
 
   const deleteRecords = useCallback((ids: string[]) => {
@@ -424,6 +435,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveDistributor,
       saveUser,
       updateRecord,
+      setActor,
       addProduct,
       addDistributor,
       addCollections,
@@ -455,6 +467,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveDistributor,
       saveUser,
       updateRecord,
+      setActor,
       addProduct,
       addDistributor,
       addCollections,

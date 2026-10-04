@@ -1,6 +1,7 @@
 "use client";
 
 import { useLang } from "@/lib/i18n";
+import { AccountCard } from "@/components/account/account-card";
 import { LangToggle } from "@/components/layout/lang-toggle";
 import { MoreList } from "@/components/layout/more-list";
 import { MenuIcon } from "@/components/ft/icons";
@@ -13,6 +14,7 @@ export default function MorePage() {
     <Screen>
       <ListHeader tone="neutral" icon={<MenuIcon size={26} />} title={t("और सब", "Everything else")} subtitle={t("रिकॉर्ड, मास्टर डेटा, एडमिन", "Records, master data, admin")} />
       <ScreenBody className="pt-0">
+        <AccountCard />
         <LangToggle className="self-start" />
         <MoreList />
       </ScreenBody>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { moreSections, type StepTone } from "@/config/nav";
 import { useLang } from "@/lib/i18n";
+import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { ChevronRightIcon } from "@/components/ft/icons";
 
@@ -19,9 +20,11 @@ const DOT: Record<StepTone, string> = {
 /** Every page beyond the daily steps, grouped. Used by the menu and /more. */
 export function MoreList({ onPick }: { onPick?: () => void }) {
   const { t, sub } = useLang();
+  const { canVisit } = useSession();
+  const sections = moreSections.map((s) => ({ ...s, links: s.links.filter((l) => canVisit(l.href)) })).filter((s) => s.links.length > 0);
   return (
     <>
-      {moreSections.map((section) => (
+      {sections.map((section) => (
         <section key={section.en} className="mt-2">
           <p className="mb-1.5 mt-3 text-sm font-bold text-ink-faint">
             {t(section.hi, section.en)} · {sub(section.hi, section.en)}

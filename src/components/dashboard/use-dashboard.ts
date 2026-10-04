@@ -40,7 +40,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
   const store = useStore();
 
   return useMemo(() => {
-    const { companies, collections, countLines, sortedBags, dispatches, distributors, products } = store;
+    const { companies, collections, countLines, sortedBags, dispatches, distributors, products, users, records } = store;
     const t = (hi: string, en: string) => (lang === "hi" ? hi : en);
     const inScope = (id: string) => companyId === "all" || id === companyId;
     const now = today();
@@ -217,14 +217,21 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
     ].map((b) => ({ ...b, value: owed.filter((d) => daysSince(d.sentDate) >= b.min && daysSince(d.sentDate) <= b.max).reduce((s, d) => s + d.claimedValue, 0) }));
 
     // ---- Today ------------------------------------------------------
-    const pickedToday = cols.filter((c) => c.collectedDate === now);
-    const todayWork = {
-      pickups: new Set(pickedToday.map((c) => `${c.companyId}:${c.distributorId}`)).size,
-      bagsIn: pickedToday.length,
-      counted: cols.filter((c) => c.countedDate === now).length,
-      tied: sortedBags.filter((b) => inScope(b.companyId) && b.createdDate === now).length,
-      sent: disp.filter((d) => d.sentDate === now),
-    };
+    // Each change is stamped with who made it, so today's work is per person.
+    const team = users
+      .filter((u) => u.isActive)
+      .map((u) => {
+        const brought = cols.filter((c) => c.collectedDate === now && c.loggedBy === u.id);
+        return {
+          user: u,
+          bagsIn: brought.length,
+          pickups: new Set(brought.map((c) => `${c.companyId}:${c.distributorId}`)).size,
+          counted: cols.filter((c) => c.countedDate === now && c.countedBy === u.id).length,
+          tied: sortedBags.filter((b) => inScope(b.companyId) && b.createdDate === now && b.tiedBy === u.id).length,
+          sent: disp.filter((d) => d.sentDate === now && d.sentBy === u.id).length,
+          godown: records.filter((r) => r.date === now && r.loggedBy === u.id).length,
+        };
+      });
 
     return {
       stuck,
@@ -248,7 +255,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
       items,
       buckets,
       owedValue,
-      todayWork,
+      team,
     };
   }, [store, companyId, period, lang]);
 }

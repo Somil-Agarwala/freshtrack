@@ -84,8 +84,8 @@ export const collectionBags: CollectionBag[] = [
   { id: "c5", bagNumber: "UNI-COL-2026-0002", companyId: "co3", distributorId: "d6", collectedDate: daysFromNow(-4), status: "uncounted", estimatedPieces: 600, notes: "Two sealed cartons, not opened yet." },
   { id: "c17", bagNumber: "UNI-COL-2026-0003", companyId: "co3", distributorId: "d4", collectedDate: daysFromNow(-3), status: "uncounted", estimatedPieces: 420 },
   { id: "c6", bagNumber: "HLD-COL-2026-0006", companyId: "co2", distributorId: "d1", collectedDate: daysFromNow(-2), status: "uncounted", estimatedPieces: 900 },
-  { id: "c7", bagNumber: "CAD-COL-2026-0009", companyId: "co1", distributorId: "d3", collectedDate: daysFromNow(-1), status: "uncounted" },
-  { id: "c18", bagNumber: "CAD-COL-2026-0010", companyId: "co1", distributorId: "d1", collectedDate: daysFromNow(0), status: "uncounted", estimatedPieces: 500 },
+  { id: "c7", bagNumber: "CAD-COL-2026-0009", companyId: "co1", distributorId: "d3", collectedDate: daysFromNow(-1), status: "uncounted", loggedBy: "u3" },
+  { id: "c18", bagNumber: "CAD-COL-2026-0010", companyId: "co1", distributorId: "d1", collectedDate: daysFromNow(0), status: "uncounted", estimatedPieces: 500, loggedBy: "u2" },
 ];
 
 export const countLines: CountLine[] = [
@@ -227,10 +227,10 @@ export const records: DamageRecord[] = [
   { companyId: "co2", id: "r8", date: daysFromNow(-20), source: "own_inventory", productId: "p5", batchNumber: "B26-0410", quantity: 80, unit: "packs", reason: "packaging_damage", costValue: 1280, status: "written_off", responsibleParty: "Delivery Partner", hasPhoto: true },
 ];
 
+// Nikhil and Debu run the godown; the admin owns the business. Change the
+// PINs on the Users page after the first sign-in.
 export const users: UserAccount[] = [
-  { id: "u1", name: "Somil", email: "somil@freshtrack.app", role: "admin", isActive: true, lastActive: daysFromNow(0) },
-  { id: "u2", name: "Priya Nair", email: "priya@freshtrack.app", role: "manager", isActive: true, lastActive: daysFromNow(-1) },
-  { id: "u3", name: "Arjun Mehta", email: "arjun@freshtrack.app", role: "data_entry", isActive: true, lastActive: daysFromNow(-2) },
-  { id: "u4", name: "Kavita Rao", email: "kavita@freshtrack.app", role: "data_entry", isActive: true, lastActive: daysFromNow(-6) },
-  { id: "u5", name: "Vikram Joshi", email: "vikram@freshtrack.app", role: "viewer", isActive: false, lastActive: daysFromNow(-40) },
+  { id: "u1", name: "Somil", email: "somil@freshtrack.app", role: "admin", isActive: true, lastActive: daysFromNow(0), pin: "0000" },
+  { id: "u2", name: "Nikhil", email: "nikhil@freshtrack.app", role: "manager", isActive: true, lastActive: daysFromNow(0), pin: "1111" },
+  { id: "u3", name: "Debu", email: "debu@freshtrack.app", role: "manager", isActive: true, lastActive: daysFromNow(0), pin: "2222" },
 ];
