@@ -10,9 +10,9 @@ export function Notice({ message }: { message: string | null }) {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 top-[4.75rem] z-[60] flex justify-center px-4 lg:left-[var(--rail)]"
+      className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex justify-center px-4 lg:top-[84px]"
     >
-      <div className="pointer-events-auto flex max-w-lg items-start gap-2 rounded-lg border border-emerald-500/40 bg-elevated px-4 py-3 text-sm font-medium text-emerald-300">
+      <div className="pointer-events-auto flex max-w-lg items-start gap-2 rounded-lg border border-money-line bg-money-tint px-4 py-3 text-[15px] font-semibold text-money-note shadow-lg">
         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
         <span>{message}</span>
       </div>

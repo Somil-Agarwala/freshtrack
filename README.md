@@ -102,39 +102,53 @@ a palette value.
 That means retheming — or adding a light mode later — is an edit to one
 block of variables, not a find-and-replace across seventy components.
 
-Surfaces step up in lightness as they come forward: `base` → `surface` →
-`elevated` → `raised`. The base is a cool near-black rather than pure
-black, which avoids the halation that makes long data-entry sessions
-tiring on OLED screens.
+Surfaces step up in lightness as they come forward: `canvas` → `bar` →
+`surface` → `elevated` → `raised`. (The page colour is called `canvas`,
+not `base`: a colour named `base` makes Tailwind's `text-base` font size
+also paint the text near-black.)
+
+Each step of the work has its own colour, used the same way on every
+screen and defined in `tailwind.config.ts`: **blue = pickup**, **yellow =
+count**, **purple = piles / tying bags**, **orange = factory**, **green =
+money**. Fonts: Mukta for text, Baloo 2 for headings and big numbers, IBM
+Plex Mono for bag numbers, all with Devanagari.
+
+## Screens
+
+The daily work follows the FreshTrack Redesign: big buttons, one decision
+per screen, Hindi with English underneath (the हिं / EN switch swaps which
+leads).
+
+| Step | Address | What happens |
+| --- | --- | --- |
+| Home | `/` | Today's work, in pipeline order, with an alert for bags waiting 7+ days. On a desktop `/` is the owner dashboard. |
+| 1 Pickup | `/pickup` → `/party` → `/bags` → `/done` | Company, party (search or speak), number of bags, rough pieces, photo. Done shows the bag numbers to write on each bag, with print and WhatsApp. |
+| 2 Count | `/count`, `/count/[bag]` | Oldest bag first. Tap an item, type the count on the big keypad, repeat. |
+| 3 Sort | `/count/[bag]/sort` | Which pile each MRP goes on, and whether a pile reached 700 so a bag can be tied. *सुनें* reads it aloud. |
+| Piles | `/piles`, `/piles/tied` | Loose counted pieces per company and MRP. Ties only full 700-piece bags; leftovers stay in the pile unless packed on purpose before a factory run. |
+| 4 Factory | `/send`, `/send/[run]` | One company per run, broken down by MRP, with a dispatch slip to print, save as PDF or send. |
+| 5 Money | `/money` | Claimed, received and pending; record what the factory paid, and short payments show as deductions. |
+| Owner | `/dashboard` | Where the money is stuck, key numbers, what needs chasing, per-company table, weekly in-vs-counted, damage by party and item, claim age. |
+
+Full records, master data and admin live under **और / More** (top header
+on desktop, the menu button on those pages on a phone).
 
 ## Mobile
 
-Built for counting and logging pickups on a phone, not just shrunk down:
-
-- **Bottom bar** below 1024px: Home, Collections, Sorted bags,
-  Dispatches, and a raised **+** in the middle that opens *Log a
-  collection* from any screen. Everything else is in the menu (top left).
-- **Search** in the top bar finds collection bags, dispatches, sorted
-  bags, products and parties. On a phone it opens full screen.
-- **Every list is a card stack** below 1024px (two columns on tablets),
-  so nothing is cut off or scrolls sideways.
-- **Filters fold away** behind a *Filters* button that shows how many are
-  set; the search box stays visible.
-- **Forms**: 16px text in every field (iOS zooms the page into anything
-  smaller), 44px tap targets, and the digit keypad for counts and amounts.
-- **Always-reachable actions**: the count sheet's running total and
-  *Mark as counted*, and *Save record* on New entry, stay pinned above the
-  bottom bar. Dialogs are bottom sheets with the buttons always on screen.
-- **Toasts** appear under the top bar, so a confirmation is never off
-  screen at the far end of a long list.
-- **Bulk actions** sit in a bar above the bottom navigation.
-- **Tap to call** a party from the Parties list.
+- The **bottom menu** (घर, गिनती, + नया माल, ढेर, भेजो) shows on the main
+  screens and hides during a focused task, where the screen's own big
+  button sits at the bottom instead, clear of the home indicator.
+- Every step screen keeps its address, so the phone's back button walks
+  back through the steps; a half-finished count survives moving between
+  the item tiles and the keypad.
+- Tap targets are 44px or more, the main buttons 64px.
+- Voice search (party, item) and read-aloud use the browser's speech
+  features where the phone has them.
 - **Installable**: *Add to Home Screen* (iOS) or *Install app* (Android,
-  Chrome) opens it full screen with its own icon. Notched phones are
-  handled through safe-area insets.
+  Chrome) opens it full screen with its own icon.
 
-On desktop the sidebar is a 72px icon rail (labels on hover); *Keep
-expanded* pins it open and pushes the page across, and is remembered.
+On desktop the same screens sit in a centred column under the top header,
+which has one link per step coloured like the step.
 
 ## Excel exports
 

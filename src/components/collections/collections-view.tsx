@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Download, Inbox, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPanel } from "@/components/ui/filter-panel";
@@ -22,7 +22,6 @@ import { useStore } from "@/lib/store";
 import { formatCurrency, formatDate, formatNumber, pluralize } from "@/lib/utils";
 import type { CollectionStatus } from "@/types";
 import { CollectionStatusBadge } from "./collection-status-badge";
-import { useLogCollection } from "./log-collection-provider";
 
 // Before counting, show the rough pickup estimate if there is one. With
 // no estimate the status badge already says "Not counted", so the pieces
@@ -40,7 +39,6 @@ export function CollectionsView() {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
-  const { open: openLogCollection } = useLogCollection();
 
   const enriched = useMemo(
     () =>
@@ -120,9 +118,9 @@ export function CollectionsView() {
             >
               <Download className="h-4 w-4" /> Export
             </Button>
-            <Button onClick={openLogCollection}>
+            <Link href="/pickup" className={buttonVariants()}>
               <Plus className="h-4 w-4" /> Log collection
-            </Button>
+            </Link>
           </>
         }
       />
@@ -192,7 +190,7 @@ export function CollectionsView() {
             icon={Inbox}
             title="No collection bags match these filters"
             description="Log a collection when you pick damaged stock up from a party."
-            action={<Button onClick={openLogCollection}><Plus className="h-4 w-4" /> Log collection</Button>}
+            action={<Link href="/pickup" className={buttonVariants()}><Plus className="h-4 w-4" /> Log collection</Link>}
           />
         </div>
       ) : (

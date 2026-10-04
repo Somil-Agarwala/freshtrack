@@ -1,53 +1,74 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { LogCollectionProvider } from "@/components/collections/log-collection-provider";
-import { MobileNav } from "./mobile-nav";
-import { Sidebar } from "./sidebar";
-import { Topbar } from "./topbar";
+import { usePathname } from "next/navigation";
+import { useState, type CSSProperties, type ReactNode } from "react";
+import { isFlowPath, showsBottomNav, titleFor } from "@/config/nav";
+import { useLang } from "@/lib/i18n";
+import { BackButton } from "@/components/ft/screen";
+import { CountDraftProvider } from "@/components/count/count-draft";
+import { MenuIcon } from "@/components/ft/icons";
+import { BottomNav } from "./bottom-nav";
+import { DashboardFiltersProvider } from "./dashboard-filters";
+import { DesktopHeader } from "./desktop-header";
+import { MoreMenu } from "./more-menu";
 
-const PIN_KEY = "freshtrack.sidebarPinned";
-
+/**
+ * Phone: every screen draws its own header; the bottom menu shows on the
+ * main screens and hides during focused tasks (pickup steps, counting),
+ * where the screen's own big button sits at the bottom instead.
+ * Desktop: one top header with a link per step, content centred under it.
+ */
 export function AppShell({ children }: { children: ReactNode }) {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  // Pinning the sidebar open used to lay it over the page, hiding the
-  // left 184px of every screen. Now it pushes the content across instead,
-  // and the choice is remembered on this device.
-  const [pinned, setPinned] = useState(false);
+  const pathname = usePathname();
+  const nav = showsBottomNav(pathname);
+  const flow = isFlowPath(pathname);
 
-  useEffect(() => {
-    try {
-      setPinned(window.localStorage.getItem(PIN_KEY) === "1");
-    } catch {
-      /* storage blocked: start collapsed */
-    }
-  }, []);
-
-  function changePinned(next: boolean) {
-    setPinned(next);
-    try {
-      window.localStorage.setItem(PIN_KEY, next ? "1" : "0");
-    } catch {
-      /* not remembered, still works for this visit */
-    }
-  }
+  const vars = {
+    // Footers and sheets stack on top of whatever is fixed at the bottom.
+    "--nav-h": nav ? "calc(78px + env(safe-area-inset-bottom))" : "0px",
+    // The bottom menu already clears the home indicator; without it the
+    // screen's own footer has to.
+    "--safe-b": nav ? "0px" : "env(safe-area-inset-bottom)",
+  } as CSSProperties;
 
   return (
-    <div className="min-h-screen bg-base" style={{ "--rail": pinned ? "256px" : "72px" } as CSSProperties}>
-      <LogCollectionProvider>
-        <Sidebar
-          mobileOpen={mobileNavOpen}
-          onMobileClose={() => setMobileNavOpen(false)}
-          pinned={pinned}
-          onPinnedChange={changePinned}
-        />
-        <div className="transition-[padding] duration-200 lg:pl-[var(--rail)]">
-          <Topbar onMenuClick={() => setMobileNavOpen(true)} />
-          {/* Bottom padding clears the phone bottom bar; it is 0 on desktop. */}
-          <main className="px-4 pb-[calc(var(--nav-h)+1.5rem)] pt-4 sm:px-6 sm:pt-6">{children}</main>
+    <DashboardFiltersProvider>
+      <CountDraftProvider>
+      <div className="min-h-[100dvh] bg-canvas pb-[var(--nav-h)] lg:pb-0 lg:[--nav-h:0px] lg:[--safe-b:0px]" style={vars}>
+        <DesktopHeader />
+        {flow ? children : <RecordsFrame>{children}</RecordsFrame>}
+        {nav && <BottomNav />}
+      </div>
+      </CountDraftProvider>
+    </DashboardFiltersProvider>
+  );
+}
+
+/** Records and admin pages: a plain phone header and normal page padding. */
+function RecordsFrame({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const { t, sub } = useLang();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const title = titleFor(pathname);
+
+  return (
+    <>
+      <header className="flex items-center gap-3 px-4 pb-1 pt-4 lg:hidden">
+        <BackButton href="/" label="Home" />
+        <div className="min-w-0 flex-1">
+          {title && (
+            <>
+              <p className="truncate font-display text-xl font-extrabold leading-tight">{t(title.hi, title.en)}</p>
+              <p className="truncate text-sm text-ink-dim">{sub(title.hi, title.en)}</p>
+            </>
+          )}
         </div>
-        <MobileNav />
-      </LogCollectionProvider>
-    </div>
+        <button type="button" onClick={() => setMoreOpen(true)} aria-label={t("और", "More")} className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-elevated">
+          <MenuIcon />
+        </button>
+      </header>
+      <main className="mx-auto max-w-[1360px] px-4 pb-6 pt-4 sm:px-6 lg:pt-6">{children}</main>
+      <MoreMenu open={moreOpen} onClose={() => setMoreOpen(false)} />
+    </>
   );
 }

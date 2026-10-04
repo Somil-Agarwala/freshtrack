@@ -99,6 +99,8 @@ export interface CollectionBag {
   /** Rough count written on the bag at pickup, before proper counting. */
   estimatedPieces?: number;
   notes?: string;
+  /** Photo taken at pickup. A local object URL until storage is wired up. */
+  photoUrl?: string;
 }
 
 /** One counted SKU line inside a collection bag. */

@@ -59,14 +59,14 @@ export function Dialog({
         ref={panelRef}
         tabIndex={-1}
         className={cn(
-          "relative flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl border border-line-strong bg-surface outline-none supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[85vh] sm:rounded-xl",
+          "relative flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-[22px] border border-line bg-surface outline-none supports-[height:100dvh]:max-h-[92dvh] sm:max-h-[85vh] sm:rounded-[22px]",
           className
         )}
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line-strong sm:hidden" aria-hidden="true" />
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div className="min-w-0">
-            <h2 id={titleId} className="text-base font-semibold text-ink">{title}</h2>
+            <h2 id={titleId} className="font-display text-[22px] font-extrabold leading-tight text-ink">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-ink-dim">{description}</p>}
           </div>
           <button

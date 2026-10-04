@@ -1,7 +1,6 @@
-import { redirect } from "next/navigation";
+import { AnalyticsView } from "@/components/analytics/analytics-view";
 
-// This page moved onto the dashboard. Kept as a redirect so bookmarks and
-// old links still land somewhere useful.
-export default function MovedToDashboard() {
-  redirect("/");
+/** The detailed reports, tables and exports behind the owner dashboard. */
+export default function AnalyticsPage() {
+  return <AnalyticsView title="Detailed reports" description="Every claim, party, product and count, with exports" />;
 }

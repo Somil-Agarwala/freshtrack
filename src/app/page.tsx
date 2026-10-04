@@ -1,13 +1,17 @@
-import { AnalyticsView } from "@/components/analytics/analytics-view";
-import { LogCollectionButton } from "@/components/collections/log-collection-button";
+import { OwnerDashboard } from "@/components/dashboard/owner-dashboard";
+import { HomeScreen } from "@/components/home/home-screen";
 
 /**
- * The dashboard is the analytics and insights view. Analytics and Reports
- * used to be separate pages; their old URLs now redirect here.
+ * Phone: today's work for whoever is in the godown.
+ * Desktop: the owner's dashboard of where the money is stuck.
  */
-export default function DashboardPage() {
+export default function Home() {
   return (
-    // Below lg the bottom bar's centre button already logs a collection.
-    <AnalyticsView primaryAction={<LogCollectionButton size="sm" className="max-lg:hidden" />} />
+    <>
+      <div className="lg:hidden">
+        <HomeScreen />
+      </div>
+      <OwnerDashboard phone={false} />
+    </>
   );
 }

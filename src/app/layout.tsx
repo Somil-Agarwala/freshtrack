@@ -1,11 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Baloo_2, IBM_Plex_Mono, Mukta } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
+import { LangProvider } from "@/lib/i18n";
 import { StoreProvider } from "@/lib/store";
 import { siteConfig } from "@/config/site";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// Mukta for reading, Baloo 2 for headings and big numbers, IBM Plex Mono
+// for bag numbers -- each with Devanagari so Hindi renders in the same face.
+const mukta = Mukta({ subsets: ["latin", "devanagari"], weight: ["400", "500", "600", "700"], variable: "--font-mukta" });
+const baloo = Baloo_2({ subsets: ["latin", "devanagari"], weight: ["600", "700", "800"], variable: "--font-baloo" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-plex-mono" });
+
+// Rendered per request: every screen counts days from today, so a page
+// prerendered at build time would show stale ages the next morning.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: `${siteConfig.name} | ${siteConfig.description}`,
@@ -27,15 +36,17 @@ export const viewport: Viewport = {
   // Lets the layout read the safe-area insets of notched phones, so the
   // bottom bar clears the home indicator.
   viewportFit: "cover",
-  themeColor: "#080A0F",
+  themeColor: "#0E1116",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="hi" className={`${mukta.variable} ${baloo.variable} ${plexMono.variable}`}>
       <body className="font-sans antialiased">
         <StoreProvider>
-          <AppShell>{children}</AppShell>
+          <LangProvider>
+            <AppShell>{children}</AppShell>
+          </LangProvider>
         </StoreProvider>
       </body>
     </html>

@@ -12,6 +12,7 @@ import {
   sortedBags as seedSortedBags,
 } from "./mock-data";
 import {
+  BAG_CAPACITY,
   buildMrpTiers,
   issueCollectionNumbers,
   issueDispatchNumber,
@@ -46,13 +47,20 @@ interface StoreValue {
   records: DamageRecord[];
 
   addProduct: (product: Omit<Product, "id">) => Product;
-  addCollections: (input: { companyId: string; distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => CollectionBag[];
+  addDistributor: (distributor: Omit<Distributor, "id" | "isActive">) => Distributor;
+  addCollections: (input: CollectionInput, bagCount: number) => CollectionBag[];
   /** What the next `count` collection numbers would be, without consuming them. */
   previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => string[];
   deleteCollections: (ids: string[]) => void;
   saveCount: (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => void;
-  packPendingForCompany: (companyId: string) => { bagCount: number; pieceCount: number };
-  packPendingLines: () => { bagCount: number; pieceCount: number };
+  packPendingForCompany: (companyId: string) => PackResult;
+  packPendingLines: () => PackResult;
+  /**
+   * Ties only the FULL bags of a company's piles (optionally just some MRP
+   * tiers), leaving the part-filled remainder loose in the pile so the
+   * next counted bag can top it up. Returns the bags it created.
+   */
+  tieFullBags: (companyId: string, mrps?: number[]) => SortedBag[];
   deleteSortedBags: (ids: string[]) => void;
   createDispatch: (bagIds: string[]) => Dispatch | null;
   recordSettlement: (dispatchId: string, receivedValue: number) => void;
@@ -61,11 +69,26 @@ interface StoreValue {
   deleteRecords: (ids: string[]) => void;
 }
 
+interface CollectionInput {
+  companyId: string;
+  distributorId: string;
+  collectedDate: string;
+  estimatedPieces?: number;
+  notes?: string;
+  photoUrl?: string;
+}
+
+interface PackResult {
+  bagCount: number;
+  pieceCount: number;
+  bags: SortedBag[];
+}
+
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [companies] = useState<Company[]>(seedCompanies);
-  const [distributors] = useState<Distributor[]>(seedDistributors);
+  const [distributors, setDistributors] = useState<Distributor[]>(seedDistributors);
   const [products, setProducts] = useState<Product[]>(seedProducts);
   const [collections, setCollections] = useState<CollectionBag[]>(seedCollections);
   const [countLines, setCountLines] = useState<CountLine[]>(seedCountLines);
@@ -106,8 +129,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return created;
   }, []);
 
+  const addDistributor = useCallback((distributor: Omit<Distributor, "id" | "isActive">) => {
+    const created: Distributor = { ...distributor, id: `d-${Date.now()}`, isActive: true };
+    setDistributors((prev) => [...prev, created]);
+    return created;
+  }, []);
+
   const addCollections = useCallback(
-    (input: { companyId: string; distributorId: string; collectedDate: string; estimatedPieces?: number; notes?: string }, bagCount: number) => {
+    (input: CollectionInput, bagCount: number) => {
       // One pickup usually means several bags from the same party, so the
       // whole batch is numbered in a single pass. Sequences run per
       // company, so Cadbury and Haldirams each keep their own clean run.
@@ -129,6 +158,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         status: "uncounted",
         estimatedPieces: input.estimatedPieces,
         notes: input.notes,
+        // One photo usually shows the whole pickup, so every bag carries it.
+        photoUrl: input.photoUrl,
       }));
 
       // Reversed so the highest number ends up at the top of the list,
@@ -184,7 +215,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const packLines = useCallback(
     (matches: (line: CountLine) => boolean) => {
       const eligible = countLines.filter((l) => !l.packed && matches(l));
-      if (eligible.length === 0) return { bagCount: 0, pieceCount: 0 };
+      if (eligible.length === 0) return { bagCount: 0, pieceCount: 0, bags: [] };
 
       const tiers = buildMrpTiers(eligible);
       const created = packTiersIntoBags(tiers, companies, today(), sequence);
@@ -206,9 +237,72 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return {
         bagCount: created.length,
         pieceCount: created.reduce((sum, b) => sum + b.pieceCount, 0),
+        bags: created,
       };
     },
     [countLines, companies, sequence]
+  );
+
+  const tieFullBags = useCallback(
+    (companyId: string, mrps?: number[]) => {
+      const inScope = (l: CountLine) => !l.packed && l.companyId === companyId && (!mrps || mrps.includes(l.mrp));
+      const tiers = buildMrpTiers(countLines.filter(inScope)).filter((tier) => tier.fullBags > 0);
+      if (tiers.length === 0) return [];
+
+      // Oldest pickups go into bags first, so pieces never sit in a pile
+      // for weeks while newer ones keep getting tied.
+      const collectedOn = new Map(collections.map((c) => [c.id, c.collectedDate]));
+      const stamp = Date.now();
+      let nextLines = countLines;
+      const created: SortedBag[] = [];
+
+      tiers.forEach((tier) => {
+        let toTake = tier.fullBags * BAG_CAPACITY;
+        const sources = new Set<string>();
+        const replaced = new Map<string, CountLine[]>();
+        nextLines
+          .filter((l) => inScope(l) && l.mrp === tier.mrp)
+          .sort((a, b) => (collectedOn.get(a.collectionId) ?? "").localeCompare(collectedOn.get(b.collectionId) ?? "") || a.id.localeCompare(b.id))
+          .forEach((line) => {
+            if (toTake <= 0) return;
+            sources.add(line.collectionId);
+            if (line.quantity <= toTake) {
+              replaced.set(line.id, [{ ...line, packed: true }]);
+              toTake -= line.quantity;
+            } else {
+              // The bag fills part-way through this line: split it, so the
+              // packed part and the loose remainder stay separately counted.
+              replaced.set(line.id, [
+                { ...line, id: `${line.id}-t${stamp}`, quantity: toTake, packed: true },
+                { ...line, quantity: line.quantity - toTake },
+              ]);
+              toTake = 0;
+            }
+          });
+        nextLines = nextLines.flatMap((l) => replaced.get(l.id) ?? [l]);
+
+        const pieces = tier.fullBags * BAG_CAPACITY;
+        created.push(
+          ...packTiersIntoBags(
+            [{ ...tier, pieces, remainder: 0, totalBags: tier.fullBags, value: pieces * tier.mrp, sourceCollectionIds: Array.from(sources) }],
+            companies,
+            today(),
+            sequence
+          )
+        );
+      });
+
+      setCountLines(nextLines);
+      setSortedBags((prev) => [...prev, ...created]);
+      setCollections((prev) =>
+        prev.map((c) => {
+          if (c.status !== "counted") return c;
+          return nextLines.some((l) => l.collectionId === c.id && !l.packed) ? c : { ...c, status: "packed" };
+        })
+      );
+      return created;
+    },
+    [countLines, collections, companies, sequence]
   );
 
   const packPendingLines = useCallback(() => packLines(() => true), [packLines]);
@@ -299,12 +393,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dispatches,
       records,
       addProduct,
+      addDistributor,
       addCollections,
       previewCollectionNumbers,
       deleteCollections,
       saveCount,
       packPendingLines,
       packPendingForCompany,
+      tieFullBags,
       deleteSortedBags,
       createDispatch,
       recordSettlement,
@@ -322,12 +418,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dispatches,
       records,
       addProduct,
+      addDistributor,
       addCollections,
       previewCollectionNumbers,
       deleteCollections,
       saveCount,
       packPendingLines,
       packPendingForCompany,
+      tieFullBags,
       deleteSortedBags,
       createDispatch,
       recordSettlement,

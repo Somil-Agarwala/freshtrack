@@ -3,48 +3,38 @@
 @tailwind utilities;
 
 /*
-  The entire dark theme lives here, as RGB triplets consumed by
-  tailwind.config.ts. Nothing else in the codebase hardcodes a slate or
-  zinc value, so adjusting the palette means editing this block only.
-
-  The base is a cool near-black rather than pure #000: pure black against
-  bright text causes halation on OLED screens and makes long sessions of
-  data entry harder on the eyes. Surfaces step up in lightness as they
-  come forward (base -> surface -> elevated -> raised).
+  Neutral palette of the FreshTrack redesign, as RGB triplets consumed by
+  tailwind.config.ts. Step colours (pickup, count, piles, factory, money)
+  live in the Tailwind config. Surfaces step up in lightness as they come
+  forward: base -> bar -> surface (cards) -> elevated -> raised.
 */
 :root {
   color-scheme: dark;
 
-  --c-base: 8 10 15;
-  --c-surface: 16 20 27;
-  --c-elevated: 23 29 38;
-  --c-raised: 32 39 50;
+  --c-base: 14 17 22;        /* #0E1116 */
+  --c-bar: 18 22 28;         /* #12161C  top/bottom bars, footers */
+  --c-surface: 23 27 34;     /* #171B22  cards */
+  --c-elevated: 31 36 45;    /* #1F242D  buttons, inner tiles */
+  --c-raised: 43 49 60;      /* #2B313C */
 
-  --c-line: 31 38 49;
-  --c-line-strong: 51 61 75;
+  --c-line: 43 49 60;        /* #2B313C */
+  --c-line-strong: 58 65 80; /* #3A4150 */
 
-  --c-ink: 233 238 245;
-  --c-ink-dim: 150 161 178;
-  --c-ink-faint: 105 117 135;
+  --c-ink: 242 244 247;      /* #F2F4F7 */
+  --c-ink-soft: 213 218 226; /* #D5DAE2 */
+  --c-ink-dim: 180 188 200;  /* #B4BCC8 */
+  --c-ink-faint: 139 148 163;/* #8B94A3 */
 
-  --c-accent: 45 212 191;
-  --c-accent-hi: 94 234 212;
-  --c-accent-ink: 4 27 26;
+  --c-accent: 61 220 151;    /* #3DDC97 */
+  --c-accent-hi: 143 230 196;
+  --c-accent-ink: 8 40 26;
 
-  /* Height of the phone bottom navigation, including the home-indicator
-     area on notched phones. Anything fixed to the bottom (bulk action
-     bar, sticky save bars, toasts) sits on top of it by using this, and
-     it collapses to 0 on desktop where there is no bottom bar. */
-  --nav-h: calc(4rem + env(safe-area-inset-bottom));
-  /* Width of the desktop sidebar; AppShell widens it when pinned open. */
-  --rail: 72px;
+  /* Height of whatever is fixed to the bottom of the phone screen (the
+     bottom menu). AppShell sets it per screen; footers with the main
+     button sit on top of it by using this. 0 on desktop. */
+  --nav-h: 0px;
 }
 
-@media (min-width: 1024px) {
-  :root {
-    --nav-h: 0px;
-  }
-}
 
 @layer base {
   html {
@@ -54,7 +44,7 @@
     text-size-adjust: 100%;
   }
   body {
-    @apply bg-base text-ink;
+    @apply bg-canvas text-ink;
     -webkit-tap-highlight-color: transparent;
   }
   /* No double-tap-to-zoom delay on anything you tap. */
@@ -93,5 +83,23 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* Stickers, bag labels and dispatch slips print from a sheet portalled
+   to <body>; on paper only that sheet shows. */
+.print-sheet {
+  display: none;
+}
+@media print {
+  body > *:not(.print-sheet) {
+    display: none !important;
+  }
+  .print-sheet {
+    display: block;
+  }
+  body {
+    background: #fff;
+    color: #111418;
   }
 }

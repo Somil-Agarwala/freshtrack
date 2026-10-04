@@ -10,7 +10,7 @@ export function BulkActionBar({ count, onClear, children }: { count: number; onC
     <div
       role="region"
       aria-label="Selected items"
-      className="fixed inset-x-0 bottom-[var(--nav-h)] z-30 border-t border-line-strong bg-elevated px-4 py-3 lg:left-[var(--rail)]"
+      className="fixed inset-x-0 bottom-[var(--nav-h)] z-30 border-t border-line-strong bg-elevated px-4 py-3"
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex items-center gap-3">
