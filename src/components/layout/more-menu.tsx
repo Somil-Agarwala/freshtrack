@@ -1,18 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
-import { moreSections } from "@/config/nav";
 import { useLang } from "@/lib/i18n";
-import { ChevronRightIcon, XIcon } from "@/components/ft/icons";
+import { XIcon } from "@/components/ft/icons";
 import { LangToggle } from "./lang-toggle";
+import { MoreList } from "./more-list";
 
 /**
  * Records, setup and admin pages. A bottom sheet on the phone, a panel
  * under the header on a desktop.
  */
 export function MoreMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t, sub } = useLang();
+  const { t } = useLang();
 
   useEffect(() => {
     if (!open) return;
@@ -42,29 +41,7 @@ export function MoreMenu({ open, onClose }: { open: boolean; onClose: () => void
           </div>
         </div>
         <div className="overflow-y-auto px-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
-          {moreSections.map((section) => (
-            <section key={section.en} className="mt-2">
-              <p className="mb-1 mt-3 text-sm font-bold text-ink-faint">
-                {t(section.hi, section.en)} · {sub(section.hi, section.en)}
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {section.links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={onClose}
-                    className="flex min-h-[52px] items-center gap-3 rounded-2xl bg-elevated px-3.5 transition-colors hover:bg-raised"
-                  >
-                    <span className="flex-1">
-                      <span className="block text-base font-bold leading-tight">{t(link.hi, link.en)}</span>
-                      <span className="block text-[13px] text-ink-dim">{sub(link.hi, link.en)}</span>
-                    </span>
-                    <ChevronRightIcon size={18} className="text-ink-faint" />
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ))}
+          <MoreList onPick={onClose} />
         </div>
       </div>
     </div>

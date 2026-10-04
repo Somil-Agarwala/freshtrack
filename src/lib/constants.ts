@@ -5,6 +5,7 @@ import type {
   ResolutionStatus,
   SortedBagStatus,
   SourceType,
+  UserRole,
 } from "@/types";
 
 export type BadgeTone = "neutral" | "accent" | "amber" | "red" | "emerald" | "blue";
@@ -78,4 +79,53 @@ export const DISPATCH_STATUS_TONE: Record<DispatchStatus, BadgeTone> = {
   partially_settled: "amber",
   settled: "emerald",
   rejected: "red",
+};
+
+/* Hindi labels for the redesigned screens; English ones above stay for exports. */
+export const REASON_HI: Record<ReasonCategory, string> = {
+  damaged_in_transit: "रास्ते में टूटा",
+  expired: "एक्सपायर",
+  quality_defect: "क्वालिटी ख़राब",
+  water_damage: "पानी से ख़राब",
+  packaging_damage: "पैकिंग फटी",
+  returned_by_distributor: "पार्टी ने लौटाया",
+  other: "कुछ और",
+};
+
+export const STATUS_HI: Record<ResolutionStatus, string> = {
+  pending_review: "जाँच बाकी",
+  under_investigation: "जाँच चल रही",
+  written_off: "नुकसान में डाला",
+  returned_to_supplier: "कंपनी को लौटाया",
+  disposed: "फेंक दिया",
+  resolved: "निपट गया",
+};
+
+/** Records still needing a decision; the rest are closed. */
+export const OPEN_STATUSES: ResolutionStatus[] = ["pending_review", "under_investigation"];
+
+export const COLLECTION_STATUS_HI: Record<CollectionStatus, string> = {
+  uncounted: "गिनती बाकी",
+  counted: "गिना, ढेर में",
+  packed: "बैग में बँधा",
+};
+
+export const SORTED_BAG_STATUS_HI: Record<SortedBagStatus, string> = {
+  ready: "भेजने को तैयार",
+  dispatched: "फैक्ट्री भेजा",
+};
+
+export const DISPATCH_STATUS_HI: Record<DispatchStatus, string> = {
+  sent: "भेजा",
+  under_review: "जाँच में",
+  partially_settled: "कम मिला",
+  settled: "पूरा मिला",
+  rejected: "मना किया",
+};
+
+export const ROLE_LABELS: Record<UserRole, { hi: string; en: string; hiDesc: string; enDesc: string }> = {
+  admin: { hi: "मालिक / एडमिन", en: "Admin", hiDesc: "सब कुछ, यूज़र और सेटिंग भी", enDesc: "Full access, including users and settings" },
+  manager: { hi: "मैनेजर", en: "Manager", hiDesc: "गिनती, बैग, गाड़ी और पैसा दर्ज", enDesc: "Count, tie bags, send runs and record payments" },
+  data_entry: { hi: "एंट्री वाला", en: "Data entry", hiDesc: "पिकअप और गिनती दर्ज करे", enDesc: "Log pickups and count bags" },
+  viewer: { hi: "सिर्फ़ देखे", en: "Viewer", hiDesc: "सब देख सकता है, बदल नहीं सकता", enDesc: "Read-only access to everything" },
 };

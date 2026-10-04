@@ -131,9 +131,9 @@ export function SendDone({ dispatchId }: { dispatchId: string }) {
   );
 }
 
-type SlipRow = { mrp: number; bags: number; pieces: number; value: number };
+export type SlipRow = { mrp: number; bags: number; pieces: number; value: number };
 
-function slipRows(bags: SortedBag[]): SlipRow[] {
+export function slipRows(bags: SortedBag[]): SlipRow[] {
   const byMrp = new Map<number, SlipRow>();
   bags.forEach((b) => {
     const row = byMrp.get(b.mrp) ?? { mrp: b.mrp, bags: 0, pieces: 0, value: 0 };
@@ -145,7 +145,7 @@ function slipRows(bags: SortedBag[]): SlipRow[] {
   return Array.from(byMrp.values()).sort((a, b) => b.value - a.value);
 }
 
-function Slip({ dispatch, company, rows }: { dispatch: Dispatch; company: Company; rows: SlipRow[] }) {
+export function Slip({ dispatch, company, rows }: { dispatch: Dispatch; company: Company; rows: SlipRow[] }) {
   const { lang } = useLang();
   return (
     <section className="flex flex-col gap-2.5 rounded-[20px] bg-white p-4 text-[#111418]">

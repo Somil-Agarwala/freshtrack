@@ -6,9 +6,9 @@ import { rampStep } from "@/lib/viz";
 
 export function Panel({ title, hint, children, className }: { title: string; hint?: string; children: ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-xl border border-line bg-surface p-4 sm:p-5", className)}>
-      <h3 className="text-sm font-semibold text-ink">{title}</h3>
-      {hint && <p className="mt-0.5 text-xs text-ink-dim">{hint}</p>}
+    <section className={cn("rounded-[20px] border border-line bg-surface p-4 sm:p-5", className)}>
+      <h3 className="font-display text-xl font-extrabold text-ink">{title}</h3>
+      {hint && <p className="mt-0.5 text-sm text-ink-dim">{hint}</p>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -41,7 +41,7 @@ export function RankedBars({
       {rows.map((r) => (
         <li key={r.label}>
           <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-            <span className="min-w-0 truncate font-medium text-ink">{r.label}</span>
+            <span className="min-w-0 truncate text-[15px] font-semibold text-ink">{r.label}</span>
             <span className="shrink-0 tabular-nums text-ink-dim">
               {format(r.value)}
               {r.sub && <span className="ml-2 text-xs text-ink-faint">{r.sub}</span>}
@@ -76,15 +76,15 @@ export function Metric({
 }) {
   const toneClass = {
     default: "text-ink",
-    good: "text-emerald-300",
-    warning: "text-amber-300",
-    critical: "text-rose-300",
+    good: "text-money",
+    warning: "text-count-soft",
+    critical: "text-danger-soft",
   }[tone];
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
-      <p className="text-xs text-ink-dim">{label}</p>
-      <p className={cn("mt-1 text-xl font-semibold tabular-nums tracking-tight", toneClass)}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
+    <div className="rounded-[18px] border border-line bg-surface p-4">
+      <p className="text-sm text-ink-dim">{label}</p>
+      <p className={cn("mt-1 font-display text-[28px] font-extrabold leading-tight tabular-nums", toneClass)}>{value}</p>
+      {hint && <p className="mt-1 text-[13px] text-ink-faint">{hint}</p>}
     </div>
   );
 }

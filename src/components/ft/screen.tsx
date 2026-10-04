@@ -72,6 +72,7 @@ const STEP_TEXT: Record<Tone, string> = {
   pile: "text-pile",
   factory: "text-factory",
   money: "text-money",
+  godown: "text-godown",
   neutral: "text-ink",
 };
 const STEP_FILL: Record<Tone, string> = {
@@ -80,6 +81,7 @@ const STEP_FILL: Record<Tone, string> = {
   pile: "bg-pile",
   factory: "bg-factory",
   money: "bg-money",
+  godown: "bg-godown",
   neutral: "bg-ink",
 };
 
@@ -124,6 +126,7 @@ const TILE: Record<Tone, string> = {
   pile: "bg-pile-tint text-pile",
   factory: "bg-factory-tint text-factory",
   money: "bg-money-tint text-money",
+  godown: "bg-godown-tint text-godown",
   neutral: "bg-elevated text-ink",
 };
 
@@ -172,7 +175,7 @@ export function Question({ hi, en, className }: { hi: string; en: string; classN
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */
 
-export type Tone = "pickup" | "count" | "pile" | "factory" | "money" | "neutral";
+export type Tone = "pickup" | "count" | "pile" | "factory" | "money" | "godown" | "neutral";
 
 const BIG: Record<Tone, string> = {
   pickup: "bg-pickup text-pickup-ink hover:brightness-110",
@@ -180,6 +183,7 @@ const BIG: Record<Tone, string> = {
   pile: "bg-pile text-pile-ink hover:brightness-110",
   factory: "bg-factory text-factory-ink hover:brightness-110",
   money: "bg-money text-money-ink hover:brightness-110",
+  godown: "bg-godown text-godown-ink hover:brightness-110",
   neutral: "bg-elevated text-ink hover:bg-raised",
 };
 
@@ -277,6 +281,7 @@ export function AgePill({ days, warnAt = 5, alarmAt = 7, todayLabel, clock }: { 
 }
 
 const NOTE: Record<string, string> = {
+  godown: "bg-godown-tint text-godown-soft",
   pickup: "bg-pickup-tint text-pickup-note",
   count: "bg-count-tint text-count-note",
   money: "bg-money-tint text-money-note",
@@ -284,6 +289,7 @@ const NOTE: Record<string, string> = {
   neutral: "bg-surface text-ink-dim",
 };
 const NOTE_SUB: Record<string, string> = {
+  godown: "text-godown-mute",
   pickup: "text-pickup-mute",
   count: "text-count-mute",
   money: "text-money-mute",

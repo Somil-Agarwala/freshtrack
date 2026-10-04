@@ -1,5 +1,5 @@
-import { CollectionDetailView } from "@/components/collections/collection-detail-view";
+import { BagDetail } from "@/components/bags/bag-detail";
 
 export default function CollectionDetailPage({ params }: { params: { collectionId: string } }) {
-  return <CollectionDetailView collectionId={params.collectionId} />;
+  return <BagDetail collectionId={params.collectionId} />;
 }

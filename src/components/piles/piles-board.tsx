@@ -64,7 +64,7 @@ export function PilesBoard() {
           </div>
         )}
 
-        <div className="grid gap-2.5 lg:grid-cols-2">
+        <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
           {piles.map((pile) => {
             const full = pile.fullBags > 0;
             const need = BAG_CAPACITY - pile.remainder;

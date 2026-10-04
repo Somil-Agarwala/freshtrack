@@ -1,11 +1,6 @@
-import { PageHeader } from "@/components/ui/page-header";
-import { NewEntryForm } from "@/components/new-entry/new-entry-form";
+import { redirect } from "next/navigation";
 
-export default function NewEntryPage() {
-  return (
-    <div className="max-w-3xl">
-      <PageHeader title="New entry" description="Log damage or expiry against your own inventory" />
-      <NewEntryForm />
-    </div>
-  );
+// Moved to the godown damage screens; kept so old links still work.
+export default function Moved() {
+  redirect("/godown/new");
 }

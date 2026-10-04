@@ -129,9 +129,13 @@ leads).
 | 4 Factory | `/send`, `/send/[run]` | One company per run, broken down by MRP, with a dispatch slip to print, save as PDF or send. |
 | 5 Money | `/money` | Tracked **per dispatch**: what each run claimed and what the factory paid. *By party* splits every run back to the parties whose goods were on it, so each party has its own account (claimed, received, pending, deducted) and a WhatsApp statement. |
 | Owner | `/dashboard` | Where the money is stuck, key numbers, what needs chasing, per-company table, weekly in-vs-counted, damage by party and item, claim age. |
+| Godown | `/godown`, `/godown/new` | Damage and expiry of your **own** stock: company, item, how much, what happened. Loss is worked out from cost price; each entry is reviewed to a final status. Linked from home and the desktop header. |
+| Records | `/collections`, `/sorted-bags`, `/dispatches/[run]` | Every pickup bag with its journey (picked up → counted → tied → sent), every tied bag with whose goods are inside, and every run with its slip, party split and payment. Excel export on each list. |
+| Setup | `/master-data/*`, `/users`, `/settings`, `/more` | Companies, products and parties with add / edit sheets; users and roles; your name and language. `/more` lists everything on a phone. |
 
-Full records, master data and admin live under **और / More** (top header
-on desktop, the menu button on those pages on a phone).
+Everything else lives under **और / More**: the header menu on desktop, and
+the *और सब* tile on the phone home screen. `/new-entry`, `/records` and
+`/dispatches` redirect to their new homes so old links keep working.
 
 ## Money per party
 

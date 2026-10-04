@@ -22,20 +22,20 @@ export const STATUS = {
   neutral: "#475569",
 } as const;
 
-export const AXIS = "#697587";
-export const GRID = "#1F2631";
-export const INK = "#E9EEF5";
+export const AXIS = "#8B94A3";
+export const GRID = "#2B313C";
+export const INK = "#F2F4F7";
 
 /** Shared recharts tooltip styling so every chart reads as one system. */
 export const TOOLTIP = {
   contentStyle: {
-    background: "#171D26",
-    border: "1px solid #333D4B",
-    borderRadius: 8,
+    background: "#1F242D",
+    border: "1px solid #3A4150",
+    borderRadius: 12,
     color: INK,
     fontSize: 12,
   },
-  labelStyle: { color: "#96A1B2" },
+  labelStyle: { color: "#B4BCC8" },
 } as const;
 
 export const AXIS_PROPS = {

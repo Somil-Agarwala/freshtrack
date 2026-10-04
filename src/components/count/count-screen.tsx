@@ -43,6 +43,8 @@ export function CountScreen({ collectionId }: { collectionId: string }) {
   const draft = drafts.get(collectionId) ?? saved;
 
   if (!bag) return <NotFound />;
+  // Pieces already tied into bags cannot be re-counted without losing them.
+  if (countLines.some((l) => l.collectionId === bag.id && l.packed)) return <NotFound locked bagId={bag.id} />;
   const itemId = params.get("item");
   const item = itemId ? products.find((p) => p.id === itemId) : undefined;
 
@@ -364,12 +366,19 @@ function Keypad({ bag, product, current, edit, onSave }: { bag: CollectionBag; p
   );
 }
 
-function NotFound() {
+function NotFound({ locked, bagId }: { locked?: boolean; bagId?: string }) {
   const { t } = useLang();
   return (
     <Screen>
       <ScreenBody className="items-center justify-center text-center">
-        <p className="text-lg text-ink-dim">{t("यह बैग नहीं मिला", "This bag was not found")}</p>
+        <p className="text-lg text-ink-dim">
+          {locked ? t("इस बैग का माल बैग में बँध चुका है, अब गिनती नहीं बदल सकते", "This bag's pieces are already tied into bags, so the count is final") : t("यह बैग नहीं मिला", "This bag was not found")}
+        </p>
+        {bagId && (
+          <Link href={`/collections/${bagId}`} className="font-bold text-pickup">
+            {t("बैग देखें", "See the bag")}
+          </Link>
+        )}
         <Link href="/count" className="font-bold text-count">
           {t("गिनती की सूची देखें", "Back to the count list")}
         </Link>

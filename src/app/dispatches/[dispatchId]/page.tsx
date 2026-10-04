@@ -1,5 +1,5 @@
-import { DispatchDetailView } from "@/components/dispatches/dispatch-detail-view";
+import { RunDetail } from "@/components/money/run-detail";
 
-export default function DispatchDetailPage({ params }: { params: { dispatchId: string } }) {
-  return <DispatchDetailView dispatchId={params.dispatchId} />;
+export default function DispatchPage({ params }: { params: { dispatchId: string } }) {
+  return <RunDetail dispatchId={params.dispatchId} />;
 }

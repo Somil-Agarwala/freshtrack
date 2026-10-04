@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { siteConfig } from "@/config/site";
 import { lakh, lakhShort, longDate, num, shortDate } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import { useSettings } from "@/lib/settings";
 import { useStore } from "@/lib/store";
 import { cn, today } from "@/lib/utils";
 import { CompanyAvatar, MrpCircle } from "@/components/ft/brand";
@@ -337,6 +337,7 @@ function BagsChange({ data, long }: { data: Data; long?: boolean }) {
 
 function DesktopDashboard({ data }: { data: Data }) {
   const { t, lang } = useLang();
+  const { userName } = useSettings();
   const { period } = useDashboardFilters();
   const monthLabel = period === "month" ? t("इस महीने मिला", "Received this month") : t("90 दिन में मिला", "Received in 90 days");
   const maxBucket = Math.max(1, ...data.buckets.map((b) => b.value));
@@ -346,7 +347,7 @@ function DesktopDashboard({ data }: { data: Data }) {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="font-display text-[34px] font-extrabold leading-[1.1]">
-            {t(`नमस्ते ${siteConfig.userName} — पैसा कहाँ अटका है?`, `Hello ${siteConfig.userName} — where is the money stuck?`)}
+            {t(`नमस्ते ${userName} — पैसा कहाँ अटका है?`, `Hello ${userName} — where is the money stuck?`)}
           </h1>
           <p className="mt-0.5 text-base text-ink-dim">
             {t("Where your damage money is stuck today", "आज आपका डैमेज का पैसा कहाँ अटका है")} · {longDate(today(), lang)}

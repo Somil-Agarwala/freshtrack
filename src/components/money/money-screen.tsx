@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { shareOnWhatsApp, useFlash } from "@/lib/device";
@@ -32,7 +33,8 @@ export function MoneyScreen() {
   const view: View = params.get("view") === "parties" ? "parties" : "runs";
   const [filter, setFilter] = useState<Filter>("all");
   const [openRun, setOpenRun] = useState<string | null>(null);
-  const [openParty, setOpenParty] = useState<string | null>(null);
+  // ?party= opens that party's account straight away (from the Parties page).
+  const [openParty, setOpenParty] = useState<string | null>(params.get("party"));
   const [recording, setRecording] = useState<Dispatch | null>(null);
   const [message, flash] = useFlash();
 
@@ -170,7 +172,7 @@ function RunList({
         {chip("all", t("सब", "All"))}
       </div>
 
-      <div className="grid gap-2.5 lg:grid-cols-2">
+      <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
         {list.map((d) => {
           const company = companies.find((c) => c.id === d.companyId);
           const owedRun = isAwaitingPayment(d);
@@ -348,6 +350,10 @@ function RunSheet({
           ))}
         </div>
       )}
+      <Link href={`/dispatches/${dispatch.id}`} className="mt-4 inline-flex items-center gap-1 text-[15px] font-bold text-factory-soft">
+        {t("चालान, बैग और पूरी जानकारी", "Slip, bags and full details")}
+        <ChevronRightIcon size={16} />
+      </Link>
       {!owed && shortfall(dispatch) > 0 && (
         <p className="mt-3 text-sm text-ink-faint">{t("फैक्ट्री की कटौती हर पार्टी पर उसके हिस्से के हिसाब से बँटी है।", "The factory's deduction is shared by each party in proportion to its claim.")}</p>
       )}
@@ -363,7 +369,7 @@ function PartyList({ accounts, distributors, onOpen }: { accounts: PartyAccount[
   const { t } = useLang();
   if (accounts.length === 0) return <p className="rounded-[18px] bg-surface p-6 text-center text-ink-dim">{t("अभी कोई गाड़ी नहीं गई", "No runs sent yet")}</p>;
   return (
-    <div className="grid gap-2.5 lg:grid-cols-2">
+    <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
       {accounts.map((a) => {
         const party = distributors.find((d) => d.id === a.distributorId);
         const name = party?.name ?? "—";
@@ -504,7 +510,7 @@ function Tile({ label, value, foot, tone }: { label: string; value: string; foot
   );
 }
 
-function RecordPayment({
+export function RecordPayment({
   dispatch,
   shares,
   partyName,

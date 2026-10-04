@@ -1,4 +1,4 @@
-export type StepTone = "neutral" | "pickup" | "count" | "pile" | "factory" | "money";
+export type StepTone = "neutral" | "pickup" | "count" | "pile" | "factory" | "money" | "godown";
 
 export interface StepLink {
   href: string;
@@ -12,38 +12,40 @@ export interface StepLink {
 /** The desktop header: one link per step, coloured like the step. */
 export const stepLinks: StepLink[] = [
   { href: "/", hi: "डैशबोर्ड", en: "Dashboard", tone: "neutral", match: ["/dashboard"] },
-  { href: "/pickup", hi: "माल", en: "Pickup", tone: "pickup", match: ["/pickup"] },
+  { href: "/pickup", hi: "माल", en: "Pickup", tone: "pickup", match: ["/pickup", "/collections"] },
   { href: "/count", hi: "गिनती", en: "Count", tone: "count", match: ["/count"] },
-  { href: "/piles", hi: "ढेर", en: "Piles", tone: "pile", match: ["/piles"] },
+  { href: "/piles", hi: "ढेर", en: "Piles", tone: "pile", match: ["/piles", "/sorted-bags"] },
   { href: "/send", hi: "फैक्ट्री", en: "Factory", tone: "factory", match: ["/send"] },
-  { href: "/money", hi: "हिसाब", en: "Money", tone: "money", match: ["/money"] },
+  { href: "/money", hi: "हिसाब", en: "Money", tone: "money", match: ["/money", "/dispatches"] },
+  { href: "/godown", hi: "गोदाम", en: "Godown", tone: "godown", match: ["/godown"] },
 ];
 
 export interface MoreLink {
   href: string;
   hi: string;
   en: string;
+  tone?: StepTone;
 }
 
-/** Everything that is not a daily step: full records, setup and admin. */
+/** Everything beyond the daily steps: records, setup and admin. */
 export const moreSections: { hi: string; en: string; links: MoreLink[] }[] = [
+  {
+    hi: "रोज़ का काम",
+    en: "Daily work",
+    links: [
+      { href: "/godown/new", hi: "गोदाम में माल ख़राब हुआ", en: "Log godown damage", tone: "godown" },
+      { href: "/godown", hi: "गोदाम का नुकसान", en: "Godown damage", tone: "godown" },
+      { href: "/money", hi: "हिसाब", en: "Factory money", tone: "money" },
+    ],
+  },
   {
     hi: "पूरा रिकॉर्ड",
     en: "Full records",
     links: [
       { href: "/dashboard", hi: "मालिक का डैशबोर्ड", en: "Owner dashboard" },
-      { href: "/collections", hi: "सारे बैग (पिकअप)", en: "All pickup bags" },
-      { href: "/sorted-bags", hi: "बँधे बैग", en: "Tied bags" },
-      { href: "/dispatches", hi: "सारी गाड़ियाँ", en: "All dispatches" },
+      { href: "/collections", hi: "सारे बैग (पिकअप)", en: "All pickup bags", tone: "pickup" },
+      { href: "/sorted-bags", hi: "बँधे बैग", en: "Tied bags", tone: "pile" },
       { href: "/analytics", hi: "विस्तृत रिपोर्ट", en: "Detailed reports" },
-    ],
-  },
-  {
-    hi: "अपना स्टॉक",
-    en: "Own inventory",
-    links: [
-      { href: "/new-entry", hi: "नई एंट्री", en: "New entry" },
-      { href: "/records", hi: "सारी एंट्री", en: "All entries" },
     ],
   },
   {
@@ -65,21 +67,13 @@ export const moreSections: { hi: string; en: string; links: MoreLink[] }[] = [
   },
 ];
 
-/** Screens of the redesigned flow; everything else is a records/admin page. */
-const FLOW_PREFIXES = ["/pickup", "/count", "/piles", "/send", "/money", "/dashboard"];
-
-export function isFlowPath(pathname: string) {
-  return pathname === "/" || FLOW_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
-
-/** Phone screens that show the bottom menu (the rest are focused tasks). */
+/** Focused tasks: the screen's own big button replaces the bottom menu. */
 export function showsBottomNav(pathname: string) {
-  return ["/", "/count", "/piles", "/send", "/dashboard"].includes(pathname) || !isFlowPath(pathname);
-}
-
-export function titleFor(pathname: string): MoreLink | undefined {
-  return moreSections
-    .flatMap((s) => s.links)
-    .filter((l) => pathname === l.href || pathname.startsWith(`${l.href}/`))
-    .sort((a, b) => b.href.length - a.href.length)[0];
+  const task =
+    pathname.startsWith("/pickup") ||
+    pathname === "/money" ||
+    /^\/(count|send|collections|dispatches)\/.+/.test(pathname) ||
+    pathname.startsWith("/piles/") ||
+    pathname.startsWith("/godown/");
+  return !task;
 }

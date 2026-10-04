@@ -53,7 +53,7 @@ export function CountList() {
             <p className="text-ink-dim">{t("नया माल आने पर यहाँ दिखेगा", "New pickups will show up here")}</p>
           </div>
         )}
-        <div className="grid gap-2.5 lg:grid-cols-2">
+        <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
           {shown.map((bag, index) => {
             const days = daysSince(bag.collectedDate);
             const company = companies.find((c) => c.id === bag.companyId);

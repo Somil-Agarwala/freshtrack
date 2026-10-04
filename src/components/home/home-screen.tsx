@@ -2,19 +2,22 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { siteConfig } from "@/config/site";
 import { longDate, lakh, weekdayEn } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import { useSettings } from "@/lib/settings";
 import { awaitingPayment, fullBagsWaiting, readyBags, staleUncounted, sumValue, STALE_COUNT_DAYS } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import { today } from "@/lib/utils";
-import { AlertIcon, ChevronRightIcon, ClipboardIcon, LayersIcon, PlusIcon, RupeeIcon, SendIcon, TruckIcon } from "@/components/ft/icons";
+import { OPEN_STATUSES } from "@/lib/constants";
+import { AlertIcon, ChevronRightIcon, ClipboardIcon, LayersIcon, MenuIcon, PlusIcon, RupeeIcon, SendIcon, TruckIcon, WarehouseIcon } from "@/components/ft/icons";
 import { LangToggle } from "@/components/layout/lang-toggle";
 
 /** Phone home: what to do today, in the order the work flows. */
 export function HomeScreen() {
   const { t, lang } = useLang();
-  const { collections, countLines, sortedBags, dispatches } = useStore();
+  const { userName } = useSettings();
+  const { collections, countLines, sortedBags, dispatches, records } = useStore();
+  const toReview = records.filter((r) => OPEN_STATUSES.includes(r.status)).length;
 
   const uncounted = collections.filter((c) => c.status === "uncounted").length;
   const stale = staleUncounted(collections).length;
@@ -30,11 +33,11 @@ export function HomeScreen() {
       <header className="flex items-center justify-between px-5 pb-2.5 pt-[18px]">
         <Link href="/dashboard" className="flex items-center gap-3" aria-label={t("डैशबोर्ड खोलें", "Open dashboard")}>
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-elevated font-display text-xl font-bold text-count">
-            {siteConfig.userName.slice(0, 1)}
+            {userName.slice(0, 1)}
           </span>
           <span>
             <span className="block font-display text-[22px] font-bold leading-[1.1]">
-              {t("नमस्ते", "Hello")}, {siteConfig.userName}
+              {t("नमस्ते", "Hello")}, {userName}
             </span>
             <span className="block text-sm text-ink-dim">
               {longDate(date, lang)}
@@ -135,6 +138,30 @@ export function HomeScreen() {
           unit={owedUnit}
           small
         />
+
+        <Link href="/godown/new" className="flex items-center gap-3.5 rounded-[18px] border border-godown-line bg-godown-panel p-3.5 transition-colors hover:brightness-110">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-godown-tint text-godown">
+            <WarehouseIcon size={28} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[19px] font-bold leading-[1.15]">{t("गोदाम में माल ख़राब हुआ?", "Damage in the godown?")}</span>
+            <span className="block text-sm text-godown-mute">{t("Own stock damage · दर्ज करें", "Own stock · log it here")}</span>
+          </span>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-godown text-godown-ink">
+            <PlusIcon size={22} />
+          </span>
+        </Link>
+
+        <div className="flex items-baseline justify-between px-1 pt-2">
+          <h2 className="font-display text-[21px] font-bold">{t("और काम", "More")}</h2>
+          <span className="text-sm text-ink-faint">{t("More", "और काम")}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <QuickTile href="/godown" icon={<WarehouseIcon size={22} />} tone="text-godown" title={t("गोदाम नुकसान", "Godown damage")} detail={toReview ? t(`${toReview} जाँच बाकी`, `${toReview} to review`) : t("सब निपटा", "All reviewed")} />
+          <QuickTile href="/money" icon={<RupeeIcon size={22} />} tone="text-money" title={t("हिसाब", "Money")} detail={t("गाड़ी और पार्टी", "By run and party")} />
+          <QuickTile href="/collections" icon={<TruckIcon size={22} />} tone="text-pickup" title={t("सारे बैग", "All bags")} detail={t("हर पिकअप", "Every pickup")} />
+          <QuickTile href="/more" icon={<MenuIcon size={22} />} tone="text-ink-dim" title={t("और सब", "Everything else")} detail={t("पार्टी, सामान, सेटिंग", "Parties, items, settings")} />
+        </div>
       </main>
     </div>
   );
@@ -190,6 +217,18 @@ function StageCard({
       <span className="text-right">
         <span className={`block font-display font-extrabold ${small ? "text-[26px] leading-[1.1]" : "text-[32px] leading-none"} ${c.value}`}>{value}</span>
         <span className="block text-[13px] text-ink-dim">{unit}</span>
+      </span>
+    </Link>
+  );
+}
+
+function QuickTile({ href, icon, tone, title, detail }: { href: string; icon: ReactNode; tone: string; title: string; detail: string }) {
+  return (
+    <Link href={href} className="flex min-h-[76px] items-center gap-3 rounded-[18px] border border-line bg-surface p-3 transition-colors hover:bg-elevated">
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-elevated ${tone}`}>{icon}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-base font-bold leading-tight">{title}</span>
+        <span className="block truncate text-[13px] text-ink-dim">{detail}</span>
       </span>
     </Link>
   );

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { siteConfig } from "@/config/site";
 import { stepLinks, type StepTone } from "@/config/nav";
 import { useLang } from "@/lib/i18n";
+import { useSettings } from "@/lib/settings";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MenuIcon, SackIcon } from "@/components/ft/icons";
@@ -20,6 +21,7 @@ const LINK_TEXT: Record<StepTone, string> = {
   pile: "text-pile-soft",
   factory: "text-factory-soft",
   money: "text-money-soft",
+  godown: "text-godown-soft",
 };
 
 const selectClass = "h-10 rounded-[10px] border border-line bg-surface px-2.5 text-[15px] text-ink";
@@ -28,6 +30,7 @@ const selectClass = "h-10 rounded-[10px] border border-line bg-surface px-2.5 te
 export function DesktopHeader() {
   const pathname = usePathname();
   const { t } = useLang();
+  const { userName } = useSettings();
   const { companies } = useStore();
   const { companyId, setCompanyId, period, setPeriod } = useDashboardFilters();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -59,6 +62,7 @@ export function DesktopHeader() {
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
+            aria-expanded={moreOpen}
             className="flex items-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[15px] font-semibold text-ink-dim hover:bg-elevated"
           >
             <MenuIcon size={18} />
@@ -88,8 +92,8 @@ export function DesktopHeader() {
           </>
         )}
         <LangToggle />
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-elevated font-display font-extrabold text-count" aria-label={siteConfig.userName}>
-          {siteConfig.userName.slice(0, 1)}
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-elevated font-display font-extrabold text-count" aria-label={userName}>
+          {userName.slice(0, 1)}
         </span>
       </div>
       <MoreMenu open={moreOpen} onClose={() => setMoreOpen(false)} />

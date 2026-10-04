@@ -48,6 +48,8 @@ const config: Config = {
         },
         factory: { DEFAULT: "#FF9F5A", ink: "#2B1405", tint: "#3B2414", panel: "#2A1A0F", line: "#5C3418", soft: "#FFC79E", mute: "#D9B79C" },
         money: { DEFAULT: "#3DDC97", ink: "#08281A", tint: "#123526", line: "#1F5C43", soft: "#8FE6C4", note: "#C9F5DF", mute: "#8FD9B5" },
+        // Own godown losses: not part of the claim pipeline, so its own colour.
+        godown: { DEFAULT: "#4FD1C5", ink: "#04211F", tint: "#11302E", panel: "#0F2523", line: "#1E5551", soft: "#9DEBE3", mute: "#7FC9C1" },
         danger: {
           DEFAULT: "#FF6B6B",
           icon: "#FF8A8A",

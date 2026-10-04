@@ -218,3 +218,61 @@ export const ProductBlockIcon = (p: IconProps) => (
     <path d="M5 9h14M5 15h14M12 3v18" />
   </Svg>
 );
+/** Own godown / warehouse. */
+export const WarehouseIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 21V9l9-5 9 5v12" />
+    <path d="M7 21v-8h10v8" />
+    <path d="M7 17h10" />
+  </Svg>
+);
+export const TrashIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </Svg>
+);
+export const EditIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+    <path d="m13.5 6.5 4 4" />
+  </Svg>
+);
+export const PhoneIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
+  </Svg>
+);
+export const BuildingIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 21V5l8-2v18M12 8h8v13M8 8h.01M8 12h.01M8 16h.01M16 12h.01M16 16h.01M3 21h18" />
+  </Svg>
+);
+export const BoxIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+    <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+  </Svg>
+);
+export const PeopleIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M3 20a6 6 0 0 1 12 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3 6" />
+  </Svg>
+);
+export const ShopIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 9h16l-1-5H5L4 9Z" />
+    <path d="M5 9v11h14V9M9 20v-6h6v6" />
+  </Svg>
+);
+export const GearIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1" />
+  </Svg>
+);
+export const ChartIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Svg>
+);

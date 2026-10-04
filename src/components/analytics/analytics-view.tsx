@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Download, Table2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
-import { Select } from "@/components/ui/select";
+import { ArrowRight } from "lucide-react";
+import { useLang } from "@/lib/i18n";
+import { ChartIcon } from "@/components/ft/icons";
+import { Chips, ExportButton } from "@/components/ft/kit";
+import { CompanyTabs, ListHeader } from "@/components/ft/screen";
 import { useStore } from "@/lib/store";
 import * as A from "@/lib/analytics";
 import { exportAnalytics } from "@/lib/export";
@@ -13,10 +14,18 @@ import { formatCurrency, formatNumber } from "@/lib/utils";
 import { DataTable, Metric, Panel, RankedBars } from "./primitives";
 import { MagnitudeBars, PairedBars, SmallMultiples, TrendLines } from "./charts";
 import { InsightList } from "./insight-list";
-import { RecentCollections } from "@/components/dashboard/recent-collections";
 
 const TABS = ["Overview", "Insights", "Claims", "Parties", "Products", "Operations", "Own inventory"] as const;
 type Tab = (typeof TABS)[number];
+const TAB_HI: Record<Tab, string> = {
+  Overview: "सारांश",
+  Insights: "ध्यान दें",
+  Claims: "क्लेम",
+  Parties: "पार्टियाँ",
+  Products: "सामान",
+  Operations: "काम की रफ़्तार",
+  "Own inventory": "गोदाम नुकसान",
+};
 
 export function AnalyticsView({
   title = "Dashboard",
@@ -29,6 +38,7 @@ export function AnalyticsView({
   primaryAction?: ReactNode;
 }) {
   const store = useStore();
+  const { t: lt } = useLang();
   const [tab, setTab] = useState<Tab>("Overview");
   const [companyId, setCompanyId] = useState<string>("all");
   const [showTables, setShowTables] = useState(false);
@@ -82,57 +92,40 @@ export function AnalyticsView({
   const urgent = findings.filter((f) => f.level === "critical" || f.level === "warning").length;
 
   return (
-    <div>
-      <PageHeader
-        title={title}
-        description={description}
-        actions={
-          <>
-            <Button variant="outline" size="sm" onClick={() => setShowTables((s) => !s)}>
-              <Table2 className="h-4 w-4" /> {showTables ? "Hide tables" : "Show tables"}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => exportAnalytics(d)}>
-              <Download className="h-4 w-4" /> Export all
-            </Button>
-            {primaryAction}
-          </>
-        }
-      />
+    <div className="mx-auto w-full max-w-[1360px] pb-8">
+      <ListHeader tone="neutral" icon={<ChartIcon size={26} />} title={lt(title === "Dashboard" ? "विस्तृत रिपोर्ट" : "विस्तृत रिपोर्ट", title)} subtitle={lt("हर क्लेम, पार्टी, सामान और गिनती — Excel के साथ", description)}>
+        <CompanyTabs companies={store.companies} value={companyId} onChange={setCompanyId} tone="count" all={lt("सब कंपनी", "All")} />
+      </ListHeader>
 
-      {/* Filters sit in one row above the charts. */}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div
-          ref={tabRow}
-          role="tablist"
-          onScroll={checkTabOverflow}
-          className={`no-scrollbar flex gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1 ${
-            moreTabs ? "[mask-image:linear-gradient(to_right,black_85%,transparent)]" : ""
-          }`}
-        >
-          {TABS.map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={tab === t}
-              onClick={() => setTab(t)}
-              className={`shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors sm:py-1.5 ${
-                tab === t ? "bg-accent text-accent-ink" : "text-ink-dim hover:bg-elevated hover:text-ink"
-              }`}
-            >
-              {t}
-              {t === "Insights" && urgent > 0 && (
-                <span className="ml-1.5 rounded-full bg-rose-500/20 px-1.5 text-xs text-rose-300">{urgent}</span>
-              )}
-            </button>
-          ))}
+      <div className="flex flex-col gap-3 px-4 pb-4 pt-2 lg:pt-4">
+        <div className="flex flex-wrap gap-2">
+          <ExportButton onClick={() => exportAnalytics(d)} />
+          <button
+            type="button"
+            onClick={() => setShowTables((s) => !s)}
+            aria-pressed={showTables}
+            className="flex h-12 items-center gap-1.5 rounded-[14px] bg-elevated px-3 text-[15px] font-bold text-ink-dim hover:bg-raised hover:text-ink"
+          >
+            {showTables ? lt("तालिका छिपाएँ", "Hide tables") : lt("तालिका दिखाएँ", "Show tables")}
+          </button>
+          {primaryAction}
         </div>
-        <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="sm:w-48">
-          <option value="all">All companies</option>
-          {store.companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </Select>
-      </div>
+        <div ref={tabRow} onScroll={checkTabOverflow} className={moreTabs ? "[mask-image:linear-gradient(to_right,black_85%,transparent)]" : ""}>
+          <Chips
+            label="Section"
+            value={tab}
+            onChange={setTab}
+            options={TABS.map((x) => ({
+              value: x,
+              label: (
+                <>
+                  {lt(TAB_HI[x], x)}
+                  {x === "Insights" && urgent > 0 && <span className="rounded-full bg-danger-tint px-1.5 text-xs text-danger-soft">{urgent}</span>}
+                </>
+              ),
+            }))}
+          />
+        </div>
 
       {tab === "Overview" && (
         <div className="space-y-4">
@@ -191,7 +184,6 @@ export function AnalyticsView({
             </Panel>
           </div>
 
-          <RecentCollections />
 
           {showTables && (
             <Panel title="Monthly figures">
@@ -445,6 +437,7 @@ export function AnalyticsView({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

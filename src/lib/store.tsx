@@ -9,6 +9,7 @@ import {
   dispatches as seedDispatches,
   products as seedProducts,
   records as seedRecords,
+  users as seedUsers,
   sortedBags as seedSortedBags,
 } from "./mock-data";
 import {
@@ -24,7 +25,7 @@ import {
 } from "./bag-packing";
 import { partySharesForBags } from "./pipeline";
 import { today } from "./utils";
-import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, Product, SortedBag } from "@/types";
+import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, Product, SortedBag, UserAccount } from "@/types";
 
 /**
  * One in-memory store shared by every page, so the pipeline genuinely
@@ -47,7 +48,14 @@ interface StoreValue {
   sortedBags: SortedBag[];
   dispatches: Dispatch[];
   records: DamageRecord[];
+  users: UserAccount[];
 
+  /** Adds the row when its id is new, otherwise replaces it. */
+  saveCompany: (company: Company) => void;
+  saveProduct: (product: Product) => void;
+  saveDistributor: (distributor: Distributor) => void;
+  saveUser: (user: UserAccount) => void;
+  updateRecord: (id: string, patch: Partial<Omit<DamageRecord, "id">>) => void;
   addProduct: (product: Omit<Product, "id">) => Product;
   addDistributor: (distributor: Omit<Distributor, "id" | "isActive">) => Distributor;
   addCollections: (input: CollectionInput, bagCount: number) => CollectionBag[];
@@ -89,7 +97,8 @@ interface PackResult {
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [companies] = useState<Company[]>(seedCompanies);
+  const [companies, setCompanies] = useState<Company[]>(seedCompanies);
+  const [users, setUsers] = useState<UserAccount[]>(seedUsers);
   const [distributors, setDistributors] = useState<Distributor[]>(seedDistributors);
   const [products, setProducts] = useState<Product[]>(seedProducts);
   const [collections, setCollections] = useState<CollectionBag[]>(seedCollections);
@@ -391,6 +400,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRecords((prev) => prev.filter((r) => !idSet.has(r.id)));
   }, []);
 
+  const saveCompany = useCallback((company: Company) => setCompanies((prev) => upsert(prev, company)), []);
+  const saveProduct = useCallback((product: Product) => setProducts((prev) => upsert(prev, product)), []);
+  const saveDistributor = useCallback((distributor: Distributor) => setDistributors((prev) => upsert(prev, distributor)), []);
+  const saveUser = useCallback((user: UserAccount) => setUsers((prev) => upsert(prev, user)), []);
+  const updateRecord = useCallback((id: string, patch: Partial<Omit<DamageRecord, "id">>) => {
+    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
+
   const value = useMemo<StoreValue>(
     () => ({
       companies,
@@ -401,6 +418,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sortedBags,
       dispatches,
       records,
+      users,
+      saveCompany,
+      saveProduct,
+      saveDistributor,
+      saveUser,
+      updateRecord,
       addProduct,
       addDistributor,
       addCollections,
@@ -426,6 +449,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sortedBags,
       dispatches,
       records,
+      users,
+      saveCompany,
+      saveProduct,
+      saveDistributor,
+      saveUser,
+      updateRecord,
       addProduct,
       addDistributor,
       addCollections,
@@ -445,6 +474,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+}
+
+function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
+  return rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [...rows, row];
 }
 
 export function useStore() {

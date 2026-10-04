@@ -1,5 +1,6 @@
-import { DispatchesView } from "@/components/dispatches/dispatches-view";
+import { redirect } from "next/navigation";
 
-export default function DispatchesPage() {
-  return <DispatchesView />;
+// Every dispatch is listed on the Money screen; kept so old links work.
+export default function Moved() {
+  redirect("/money");
 }

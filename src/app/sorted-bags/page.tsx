@@ -1,7 +1,6 @@
-import { SortedBagsView } from "@/components/sorted-bags/sorted-bags-view";
+import { TiedBags } from "@/components/bags/tied-bags";
 
-// ?q= pre-fills the bag search, so a result from the top-bar search lands
-// on that bag. Keyed so a second search from this page applies too.
+// ?q= pre-fills the bag search, so a link can land on one bag.
 export default function SortedBagsPage({ searchParams }: { searchParams: { q?: string } }) {
-  return <SortedBagsView key={searchParams.q ?? ""} initialSearch={searchParams.q} />;
+  return <TiedBags key={searchParams.q ?? ""} initialSearch={searchParams.q} />;
 }

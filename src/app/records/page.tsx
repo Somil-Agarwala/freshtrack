@@ -1,5 +1,6 @@
-import { RecordsView } from "@/components/records/records-view";
+import { redirect } from "next/navigation";
 
-export default function RecordsPage() {
-  return <RecordsView />;
+// Moved to the godown damage screens; kept so old links still work.
+export default function Moved() {
+  redirect("/godown");
 }
