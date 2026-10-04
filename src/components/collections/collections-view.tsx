@@ -8,6 +8,7 @@ import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterPanel } from "@/components/ui/filter-panel";
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { PageHeader } from "@/components/ui/page-header";
@@ -18,10 +19,18 @@ import { COLLECTION_STATUS_LABELS } from "@/lib/constants";
 import { exportCollections } from "@/lib/export";
 import { distributors } from "@/lib/mock-data";
 import { useStore } from "@/lib/store";
-import { formatCurrency, formatNumber, pluralize } from "@/lib/utils";
+import { formatCurrency, formatDate, formatNumber, pluralize } from "@/lib/utils";
 import type { CollectionStatus } from "@/types";
 import { CollectionStatusBadge } from "./collection-status-badge";
-import { NewCollectionDialog } from "./new-collection-dialog";
+import { useLogCollection } from "./log-collection-provider";
+
+// Before counting, show the rough pickup estimate if there is one. With
+// no estimate the status badge already says "Not counted", so the pieces
+// column shows a dash rather than repeating it in a numbers column.
+function piecesLabel(c: { status: CollectionStatus; estimatedPieces?: number; countedPieces: number }) {
+  if (c.status !== "uncounted") return formatNumber(c.countedPieces);
+  return c.estimatedPieces ? `~${formatNumber(c.estimatedPieces)}` : "—";
+}
 
 export function CollectionsView() {
   const { collections, companies, countLines, deleteCollections } = useStore();
@@ -31,7 +40,7 @@ export function CollectionsView() {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const { open: openLogCollection } = useLogCollection();
 
   const enriched = useMemo(
     () =>
@@ -111,7 +120,7 @@ export function CollectionsView() {
             >
               <Download className="h-4 w-4" /> Export
             </Button>
-            <Button onClick={() => setDialogOpen(true)}>
+            <Button onClick={openLogCollection}>
               <Plus className="h-4 w-4" /> Log collection
             </Button>
           </>
@@ -120,48 +129,62 @@ export function CollectionsView() {
 
       <Notice message={notice} />
 
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-4">
         <StatCard label="Waiting to be counted" value={String(uncountedCount)} tone={uncountedCount > 0 ? "amber" : "default"} />
         <StatCard label="Counted, not yet packed" value={`${formatNumber(awaitingPackPieces)} pcs`} tone={awaitingPackPieces > 0 ? "accent" : "default"} />
         <StatCard label="Collection bags on record" value={String(collections.length)} />
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <FilterPanel
+        activeCount={[statusFilter, companyFilter, partyFilter].filter((f) => f !== "all").length}
+        onClearFilters={() => {
+          setStatusFilter("all");
+          setCompanyFilter("all");
+          setPartyFilter("all");
+        }}
+        search={
           <div className="relative sm:w-56">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Bag number or party" className="pl-9" />
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Bag number or party" className="pl-9" />
           </div>
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | CollectionStatus)} className="sm:w-40">
-            <option value="all">All statuses</option>
-            {Object.entries(COLLECTION_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </Select>
-          <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="sm:w-44">
-            <option value="all">All companies</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </Select>
-          <Select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="sm:w-52">
-            <option value="all">All parties</option>
-            {distributors.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={toggleSelectAll}
-            disabled={filtered.length === 0}
-            className="text-sm font-medium text-accent hover:text-accent-hi disabled:pointer-events-none disabled:text-ink-faint"
-          >
-            {allFilteredSelected ? "Clear selection" : `Select all ${filtered.length}`}
-          </button>
-          <p className="text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "bag")}</p>
-        </div>
-      </div>
+        }
+        filters={
+          <>
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | CollectionStatus)} className="sm:w-40">
+              <option value="all">All statuses</option>
+              {Object.entries(COLLECTION_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </Select>
+            <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="sm:w-44">
+              <option value="all">All companies</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+            <div className="col-span-2 sm:col-auto">
+              <Select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="sm:w-52">
+                <option value="all">All parties</option>
+                {distributors.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </Select>
+            </div>
+          </>
+        }
+        summary={
+          <>
+            <button
+              onClick={toggleSelectAll}
+              disabled={filtered.length === 0}
+              className="-my-2 py-2 text-sm font-medium text-accent hover:text-accent-hi disabled:pointer-events-none disabled:text-ink-faint"
+            >
+              {allFilteredSelected ? "Clear selection" : `Select all ${filtered.length}`}
+            </button>
+            <p className="text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "bag")}</p>
+          </>
+        }
+      />
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-line bg-surface">
@@ -169,12 +192,12 @@ export function CollectionsView() {
             icon={Inbox}
             title="No collection bags match these filters"
             description="Log a collection when you pick damaged stock up from a party."
-            action={<Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> Log collection</Button>}
+            action={<Button onClick={openLogCollection}><Plus className="h-4 w-4" /> Log collection</Button>}
           />
         </div>
       ) : (
         <>
-          <div className="hidden rounded-xl border border-line bg-surface md:block">
+          <div className="hidden rounded-xl border border-line bg-surface lg:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -207,15 +230,9 @@ export function CollectionsView() {
                       <TableCell><Badge tone="accent">{company?.name}</Badge></TableCell>
                       <TableCell className="text-ink-dim">{distributor?.name}</TableCell>
                       <TableCell><CollectionStatusBadge status={c.status} /></TableCell>
-                      <TableCell className="text-ink">
-                        {c.status === "uncounted"
-                          ? c.estimatedPieces
-                            ? `~${formatNumber(c.estimatedPieces)}`
-                            : "Not counted"
-                          : formatNumber(c.countedPieces)}
-                      </TableCell>
-                      <TableCell className="text-ink">{c.status === "uncounted" ? "—" : formatCurrency(c.countedValue)}</TableCell>
-                      <TableCell className="text-ink-dim">{new Date(c.collectedDate).toLocaleDateString("en-IN")}</TableCell>
+                      <TableCell className="tabular-nums text-ink">{piecesLabel(c)}</TableCell>
+                      <TableCell className="tabular-nums text-ink">{c.status === "uncounted" ? "—" : formatCurrency(c.countedValue)}</TableCell>
+                      <TableCell className="text-ink-dim">{formatDate(c.collectedDate)}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -223,7 +240,7 @@ export function CollectionsView() {
             </Table>
           </div>
 
-          <div className="space-y-3 md:hidden">
+          <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
             {filtered.map((c) => {
               const distributor = distributors.find((d) => d.id === c.distributorId);
               const company = companies.find((co) => co.id === c.companyId);
@@ -236,26 +253,24 @@ export function CollectionsView() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate font-mono text-sm font-medium text-ink">{c.bagNumber}</p>
-                        <p className="mt-0.5 truncate text-sm text-ink-dim">
+                        <p className="mt-0.5 line-clamp-2 text-sm text-ink-dim">
                           {company?.name} · {distributor?.name}
                         </p>
                       </div>
                       <CollectionStatusBadge status={c.status} />
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3">
+                    <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-line pt-3">
                       <div>
                         <p className="text-xs text-ink-faint">Pieces</p>
-                        <p className="text-sm font-medium text-ink">
-                          {c.status === "uncounted"
-                            ? c.estimatedPieces
-                              ? `~${formatNumber(c.estimatedPieces)}`
-                              : "Not counted"
-                            : formatNumber(c.countedPieces)}
-                        </p>
+                        <p className="text-sm font-medium tabular-nums text-ink">{piecesLabel(c)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-ink-faint">Value</p>
-                        <p className="text-sm font-medium text-ink">{c.status === "uncounted" ? "—" : formatCurrency(c.countedValue)}</p>
+                        <p className="text-sm font-medium tabular-nums text-ink">{c.status === "uncounted" ? "—" : formatCurrency(c.countedValue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-ink-faint">Collected</p>
+                        <p className="whitespace-nowrap text-sm font-medium text-ink">{formatDate(c.collectedDate)}</p>
                       </div>
                     </div>
                   </Link>
@@ -272,11 +287,6 @@ export function CollectionsView() {
         </Button>
       </BulkActionBar>
 
-      <NewCollectionDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onCreated={(message) => flash(message)}
-      />
     </div>
   );
 }

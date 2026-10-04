@@ -58,10 +58,10 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
 
       <Notice message={notice} />
 
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-mono text-2xl font-semibold text-ink">{dispatch.dispatchNumber}</h1>
+      <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4 max-sm:[&>button]:w-full">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="break-all font-mono text-xl font-semibold text-ink sm:text-2xl">{dispatch.dispatchNumber}</h1>
             <Badge tone={DISPATCH_STATUS_TONE[dispatch.status]}>{DISPATCH_STATUS_LABELS[dispatch.status]}</Badge>
           </div>
           <p className="mt-1 text-sm text-ink-dim">
@@ -73,7 +73,7 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
         </Button>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:mb-6 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Bags sent" value={String(dispatch.bagCount)} />
         <StatCard label="Pieces" value={formatNumber(dispatch.pieceCount)} />
         <StatCard label="Claimed" value={formatCurrency(dispatch.claimedValue)} />
@@ -97,6 +97,7 @@ export function DispatchDetailView({ dispatchId }: { dispatchId: string }) {
               <Input
                 id="received"
                 type="number"
+                inputMode="decimal"
                 min={0}
                 placeholder={String(dispatch.claimedValue)}
                 value={receivedInput}

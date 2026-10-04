@@ -8,6 +8,7 @@ import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterPanel } from "@/components/ui/filter-panel";
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { PageHeader } from "@/components/ui/page-header";
@@ -94,41 +95,55 @@ export function RecordsView() {
 
       <Notice message={notice} />
 
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <FilterPanel
+        activeCount={[sourceFilter, reasonFilter, statusFilter].filter((f) => f !== "all").length}
+        onClearFilters={() => {
+          setSourceFilter("all");
+          setReasonFilter("all");
+          setStatusFilter("all");
+        }}
+        search={
           <div className="relative sm:w-52">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SKU, product or batch" className="pl-9" />
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SKU, product, batch" className="pl-9" />
           </div>
-          <Select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)} className="sm:w-40">
-            <option value="all">All sources</option>
-            <option value="own_inventory">Own inventory</option>
-            <option value="distributor">Party</option>
-          </Select>
-          <Select value={reasonFilter} onChange={(e) => setReasonFilter(e.target.value as "all" | ReasonCategory)} className="sm:w-48">
-            <option value="all">All reasons</option>
-            {Object.entries(REASON_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </Select>
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | ResolutionStatus)} className="sm:w-48">
-            <option value="all">All statuses</option>
-            {Object.entries(STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={toggleSelectAll}
-            disabled={filtered.length === 0}
-            className="whitespace-nowrap text-sm font-medium text-accent hover:text-accent-hi disabled:pointer-events-none disabled:text-ink-faint"
-          >
-            {allFilteredSelected ? "Clear selection" : `Select all ${filtered.length}`}
-          </button>
-          <p className="whitespace-nowrap text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "record")}</p>
-        </div>
-      </div>
+        }
+        filters={
+          <>
+            <Select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as typeof sourceFilter)} className="sm:w-40">
+              <option value="all">All sources</option>
+              <option value="own_inventory">Own inventory</option>
+              <option value="distributor">Party</option>
+            </Select>
+            <Select value={reasonFilter} onChange={(e) => setReasonFilter(e.target.value as "all" | ReasonCategory)} className="sm:w-48">
+              <option value="all">All reasons</option>
+              {Object.entries(REASON_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </Select>
+            <div className="col-span-2 sm:col-auto">
+              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | ResolutionStatus)} className="sm:w-48">
+                <option value="all">All statuses</option>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </Select>
+            </div>
+          </>
+        }
+        summary={
+          <>
+            <button
+              onClick={toggleSelectAll}
+              disabled={filtered.length === 0}
+              className="-my-2 whitespace-nowrap py-2 text-sm font-medium text-accent hover:text-accent-hi disabled:pointer-events-none disabled:text-ink-faint"
+            >
+              {allFilteredSelected ? "Clear selection" : `Select all ${filtered.length}`}
+            </button>
+            <p className="whitespace-nowrap text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "record")}</p>
+          </>
+        }
+      />
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-line bg-surface">
@@ -136,7 +151,7 @@ export function RecordsView() {
         </div>
       ) : (
         <>
-          <div className="hidden rounded-xl border border-line bg-surface md:block">
+          <div className="hidden rounded-xl border border-line bg-surface lg:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -184,7 +199,7 @@ export function RecordsView() {
             </Table>
           </div>
 
-          <div className="space-y-3 md:hidden">
+          <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
             {filtered.map((r) => {
               const product = products.find((p) => p.id === r.productId);
               return (
@@ -195,23 +210,25 @@ export function RecordsView() {
                   <div className="min-w-0 flex-1 py-1">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-ink">{product?.name}</p>
-                        <p className="text-xs text-ink-faint">Batch {r.batchNumber}</p>
+                        <p className="line-clamp-2 font-medium text-ink">{product?.name}</p>
+                        <p className="text-xs text-ink-faint">
+                          Batch {r.batchNumber} · {formatDate(r.date)}
+                        </p>
                       </div>
                       <StatusBadge status={r.status} />
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3">
+                    <div className="mt-3 grid grid-cols-[auto_auto_1fr] gap-x-5 gap-y-2 border-t border-line pt-3">
                       <div>
                         <p className="text-xs text-ink-faint">Qty</p>
-                        <p className="text-sm font-medium text-ink">{r.quantity}</p>
+                        <p className="text-sm font-medium tabular-nums text-ink">{r.quantity} {r.unit}</p>
                       </div>
                       <div>
                         <p className="text-xs text-ink-faint">Cost</p>
-                        <p className="text-sm font-medium text-ink">{formatCurrency(r.costValue)}</p>
+                        <p className="text-sm font-medium tabular-nums text-ink">{formatCurrency(r.costValue)}</p>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs text-ink-faint">Reason</p>
-                        <p className="truncate text-sm font-medium text-ink">{REASON_LABELS[r.reason]}</p>
+                        <p className="text-sm font-medium text-ink">{REASON_LABELS[r.reason]}</p>
                       </div>
                     </div>
                   </div>

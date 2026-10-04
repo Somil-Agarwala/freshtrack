@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 interface SidebarProps {
   mobileOpen: boolean;
   onMobileClose: () => void;
+  pinned: boolean;
+  onPinnedChange: (pinned: boolean) => void;
 }
 
 // Two distinct behaviours in one component:
@@ -19,9 +21,8 @@ interface SidebarProps {
 //   pin toggle for anyone who would rather not rely on hover.
 // - below lg: fully off-canvas, slid in from the hamburger in the topbar.
 //   Hover does not exist on touch, so entry is an explicit tap.
-export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ mobileOpen, onMobileClose, pinned, onPinnedChange }: SidebarProps) {
   const [hovered, setHovered] = useState(false);
-  const [pinned, setPinned] = useState(false);
   const pathname = usePathname();
   const desktopExpanded = hovered || pinned;
   const showLabels = desktopExpanded || mobileOpen;
@@ -87,6 +88,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                       <Link
                         href={item.href}
                         onClick={onMobileClose}
+                        aria-current={isActive ? "page" : undefined}
+                        // The collapsed rail is icons only, so name each one on hover.
+                        title={showLabels ? undefined : item.label}
+                        aria-label={item.label}
                         className={cn(
                           "group flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-colors",
                           isActive ? "bg-accent/15 text-accent" : "text-ink-dim hover:bg-elevated hover:text-ink"
@@ -110,9 +115,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-line p-3">
+        <div className="shrink-0 border-t border-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-3">
           <button
-            onClick={() => setPinned((p) => !p)}
+            onClick={() => onPinnedChange(!pinned)}
             className="mb-2 hidden w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium text-ink-faint hover:bg-elevated hover:text-ink-dim lg:flex"
           >
             {pinned ? <ChevronsLeft className="h-5 w-5 shrink-0" /> : <ChevronsRight className="h-5 w-5 shrink-0" />}

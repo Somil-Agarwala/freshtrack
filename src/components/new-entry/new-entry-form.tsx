@@ -260,11 +260,11 @@ export function NewEntryForm() {
                 </div>
                 <div>
                   <Label htmlFor="newMrp">MRP (₹)</Label>
-                  <Input id="newMrp" type="number" min={0} value={newMrp} onChange={(e) => setNewMrp(e.target.value)} placeholder="Printed price" />
+                  <Input id="newMrp" type="number" inputMode="decimal" min={0} value={newMrp} onChange={(e) => setNewMrp(e.target.value)} placeholder="Printed price" />
                 </div>
                 <div>
                   <Label htmlFor="newCost">Cost price (₹)</Label>
-                  <Input id="newCost" type="number" min={0} value={newCost} onChange={(e) => setNewCost(e.target.value)} placeholder="Your cost" />
+                  <Input id="newCost" type="number" inputMode="decimal" min={0} value={newCost} onChange={(e) => setNewCost(e.target.value)} placeholder="Your cost" />
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -348,6 +348,7 @@ export function NewEntryForm() {
             <Input
               id="cost"
               type="number"
+              inputMode="decimal"
               min={0}
               required
               value={costValue}
@@ -393,7 +394,9 @@ export function NewEntryForm() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-3">
+      {/* On a phone this bar stays pinned above the bottom navigation, so
+          Save is reachable without scrolling past the photo section. */}
+      <div className="sticky bottom-[var(--nav-h)] z-20 -mx-4 flex items-center justify-end gap-3 border-t border-line bg-base/95 px-4 py-3 backdrop-blur max-sm:[&>*]:flex-1 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <Button type="button" variant="outline" onClick={resetForm}>Reset</Button>
         <Button type="submit">Save record</Button>
       </div>

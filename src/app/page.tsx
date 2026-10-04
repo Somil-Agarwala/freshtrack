@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
 import { AnalyticsView } from "@/components/analytics/analytics-view";
-import { buttonVariants } from "@/components/ui/button";
+import { LogCollectionButton } from "@/components/collections/log-collection-button";
 
 /**
  * The dashboard is the analytics and insights view. Analytics and Reports
@@ -9,12 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
  */
 export default function DashboardPage() {
   return (
-    <AnalyticsView
-      primaryAction={
-        <Link href="/collections" className={buttonVariants({ size: "sm" })}>
-          <Plus className="h-4 w-4" /> Log collection
-        </Link>
-      }
-    />
+    // Below lg the bottom bar's centre button already logs a collection.
+    <AnalyticsView primaryAction={<LogCollectionButton size="sm" className="max-lg:hidden" />} />
   );
 }

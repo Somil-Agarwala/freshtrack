@@ -21,7 +21,7 @@ export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () =
 
   return (
     <div className="mb-4 rounded-xl border border-accent/30 bg-accent/[0.06] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 max-sm:[&>button]:w-full">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/15">
             <Layers className="h-5 w-5 text-accent" />
@@ -38,7 +38,30 @@ export function PackingPanel({ tiers, onPack }: { tiers: MrpTier[]; onPack: () =
         <Button onClick={onPack}>Generate {totalBags} {pluralize(totalBags, "bag")}</Button>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
+      {/* Phones: one line per tier instead of a seven-column table. */}
+      <ul className="mt-4 divide-y divide-line border-t border-line md:hidden">
+        {tiers.map((tier) => (
+          <li key={`${tier.companyId}-${tier.mrp}`} className="flex items-center justify-between gap-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-ink">
+                {companies.find((c) => c.id === tier.companyId)?.name} · MRP {formatCurrency(tier.mrp)}
+              </p>
+              <p className="mt-0.5 text-xs text-ink-dim">
+                {formatNumber(tier.pieces)} pcs · {tier.fullBags} full
+                {tier.remainder > 0 && ` + ${formatNumber(tier.remainder)} pcs part-filled`}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-sm font-semibold tabular-nums text-ink">
+                {tier.totalBags} {pluralize(tier.totalBags, "bag")}
+              </p>
+              <p className="text-xs tabular-nums text-ink-dim">{formatCurrency(tier.value)}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-4 hidden overflow-x-auto md:block">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-line text-xs text-ink-faint">

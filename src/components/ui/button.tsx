@@ -12,10 +12,12 @@ const variantStyles: Record<ButtonVariant, string> = {
   danger: "bg-red-500/15 text-red-300 hover:bg-red-500/25",
 };
 
+// One step taller below sm, so every button on a phone is at least a
+// 40-44px touch target; desktop sizes are unchanged.
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: "h-9 px-3 text-sm gap-1.5",
-  md: "h-10 px-4 text-sm gap-2",
-  lg: "h-11 px-5 text-base gap-2",
+  sm: "h-10 px-3 text-sm gap-1.5 sm:h-9",
+  md: "h-11 px-4 text-sm gap-2 sm:h-10",
+  lg: "h-12 px-5 text-base gap-2 sm:h-11",
 };
 
 export function buttonVariants(opts: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}) {

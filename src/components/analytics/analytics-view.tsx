@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Download, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,18 @@ export function AnalyticsView({
   const [tab, setTab] = useState<Tab>("Overview");
   const [companyId, setCompanyId] = useState<string>("all");
   const [showTables, setShowTables] = useState(false);
+  // Seven tabs do not fit a phone; the row scrolls sideways. Keep the
+  // chosen tab in view and fade the edge while there is more to swipe to.
+  const tabRow = useRef<HTMLDivElement>(null);
+  const [moreTabs, setMoreTabs] = useState(false);
+  function checkTabOverflow() {
+    const el = tabRow.current;
+    if (el) setMoreTabs(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }
+  useEffect(() => {
+    tabRow.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    checkTabOverflow();
+  }, [tab]);
 
   const dataset: A.Dataset = useMemo(
     () => ({
@@ -89,12 +101,21 @@ export function AnalyticsView({
 
       {/* Filters sit in one row above the charts. */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1">
+        <div
+          ref={tabRow}
+          role="tablist"
+          onScroll={checkTabOverflow}
+          className={`no-scrollbar flex gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1 ${
+            moreTabs ? "[mask-image:linear-gradient(to_right,black_85%,transparent)]" : ""
+          }`}
+        >
           {TABS.map((t) => (
             <button
               key={t}
+              role="tab"
+              aria-selected={tab === t}
               onClick={() => setTab(t)}
-              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors sm:py-1.5 ${
                 tab === t ? "bg-accent text-accent-ink" : "text-ink-dim hover:bg-elevated hover:text-ink"
               }`}
             >

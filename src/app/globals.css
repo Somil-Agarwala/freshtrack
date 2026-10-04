@@ -30,14 +30,42 @@
   --c-accent: 45 212 191;
   --c-accent-hi: 94 234 212;
   --c-accent-ink: 4 27 26;
+
+  /* Height of the phone bottom navigation, including the home-indicator
+     area on notched phones. Anything fixed to the bottom (bulk action
+     bar, sticky save bars, toasts) sits on top of it by using this, and
+     it collapses to 0 on desktop where there is no bottom bar. */
+  --nav-h: calc(4rem + env(safe-area-inset-bottom));
+  /* Width of the desktop sidebar; AppShell widens it when pinned open. */
+  --rail: 72px;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --nav-h: 0px;
+  }
 }
 
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
+    /* Stop iOS enlarging text on rotate. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   body {
     @apply bg-base text-ink;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* No double-tap-to-zoom delay on anything you tap. */
+  a,
+  button,
+  label,
+  input,
+  select,
+  textarea,
+  summary {
+    touch-action: manipulation;
   }
   /* Native form controls default to a light UA palette; without this the
      date picker and select arrows render as light chips on dark fields. */
@@ -58,5 +86,12 @@
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     @apply bg-transparent;
+  }
+  /* Horizontal chip rows scroll by swipe; the bar itself is noise. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }

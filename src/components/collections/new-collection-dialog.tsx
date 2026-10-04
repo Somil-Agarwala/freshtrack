@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -80,19 +80,21 @@ export function NewCollectionDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-xl border border-line-strong bg-surface sm:rounded-xl">
-        <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold text-ink">Log a collection</h2>
-            <p className="mt-0.5 text-sm text-ink-dim">Record the bags now, count them later.</p>
-          </div>
-          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-faint hover:bg-elevated" aria-label="Close">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="space-y-4 px-5 py-5">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Log a collection"
+      description="Record the bags now, count them later."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={!companyId || !distributorId}>
+            Generate {parsedCount} {pluralize(parsedCount, "bag")}
+          </Button>
+        </>
+      }
+    >
+        <div className="space-y-4">
           <div>
             <Label htmlFor="company">Company</Label>
             <Select id="company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
@@ -125,15 +127,15 @@ export function NewCollectionDialog({
                 min={1}
                 value={bagCount}
                 onChange={(e) => setBagCount(e.target.value)}
-                className="w-28"
+                className="w-20 shrink-0 sm:w-28"
               />
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid flex-1 grid-cols-4 gap-1.5 sm:flex sm:flex-none sm:flex-wrap">
                 {QUICK_COUNTS.map((count) => (
                   <button
                     key={count}
                     type="button"
                     onClick={() => setBagCount(String(count))}
-                    className={`h-10 min-w-[44px] rounded-lg px-3 text-sm font-medium transition-colors ${
+                    className={`h-11 min-w-[44px] rounded-lg px-3 text-sm font-medium transition-colors sm:h-10 ${
                       parsedCount === count ? "bg-accent text-accent-ink" : "bg-elevated text-ink-dim hover:bg-raised hover:text-ink"
                     }`}
                   >
@@ -179,14 +181,6 @@ export function NewCollectionDialog({
             />
           </div>
         </div>
-
-        <div className="flex justify-end gap-2 border-t border-line px-5 py-4">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!companyId || !distributorId}>
-            Generate {parsedCount} {pluralize(parsedCount, "bag")}
-          </Button>
-        </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

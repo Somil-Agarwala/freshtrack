@@ -36,12 +36,41 @@ export function CompaniesTable() {
     <div className="space-y-4">
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search companies" className="pl-9" />
+        <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search companies" className="pl-9" />
       </div>
       <div className="rounded-xl border border-line bg-surface">
         {rows.length === 0 ? (
           <EmptyState icon={Building2} title="No companies found" description="Try a different search term." />
         ) : (
+          <>
+          <ul className="divide-y divide-line md:hidden">
+            {rows.map((c) => (
+              <li key={c.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink">{c.name}</p>
+                    <p className="mt-0.5 font-mono text-xs text-accent">{c.code} · {c.skuCount} SKUs</p>
+                  </div>
+                  <Badge tone={c.isActive ? "emerald" : "neutral"}>{c.isActive ? "Active" : "Inactive"}</Badge>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3">
+                  <div>
+                    <p className="text-xs text-ink-faint">Uncounted</p>
+                    <p className="text-sm font-medium tabular-nums text-ink">{c.uncounted}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-faint">Ready</p>
+                    <p className="text-sm font-medium tabular-nums text-ink">{formatCurrency(c.readyValue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-faint">Outstanding</p>
+                    <p className={`text-sm font-medium tabular-nums ${c.outstanding > 0 ? "text-amber-300" : "text-ink"}`}>{formatCurrency(c.outstanding)}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -70,6 +99,8 @@ export function CompaniesTable() {
               ))}
             </TableBody>
           </Table>
+          </div>
+          </>
         )}
       </div>
     </div>

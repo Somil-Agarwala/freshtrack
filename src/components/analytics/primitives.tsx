@@ -6,7 +6,7 @@ import { rampStep } from "@/lib/viz";
 
 export function Panel({ title, hint, children, className }: { title: string; hint?: string; children: ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-xl border border-line bg-surface p-5", className)}>
+    <section className={cn("rounded-xl border border-line bg-surface p-4 sm:p-5", className)}>
       <h3 className="text-sm font-semibold text-ink">{title}</h3>
       {hint && <p className="mt-0.5 text-xs text-ink-dim">{hint}</p>}
       <div className="mt-4">{children}</div>
@@ -93,7 +93,25 @@ export function Metric({
 export function DataTable({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
   if (rows.length === 0) return <Empty message="Nothing to show yet." />;
   return (
-    <div className="overflow-x-auto">
+    <>
+    {/* Phones: each row becomes a small card of label/value pairs, so a
+        seven-column table does not have to be scrolled sideways. */}
+    <ul className="space-y-2 sm:hidden">
+      {rows.map((r, ri) => (
+        <li key={ri} className="rounded-lg border border-line bg-elevated/40 p-3">
+          <p className="text-sm font-medium text-ink">{r[0]}</p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+            {r.slice(1).map((cell, ci) => (
+              <div key={ci} className="min-w-0">
+                <dt className="text-xs text-ink-faint">{head[ci + 1]}</dt>
+                <dd className="text-sm tabular-nums text-ink-dim">{cell}</dd>
+              </div>
+            ))}
+          </dl>
+        </li>
+      ))}
+    </ul>
+    <div className="hidden overflow-x-auto sm:block">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-line text-xs text-ink-faint">
@@ -115,5 +133,6 @@ export function DataTable({ head, rows }: { head: string[]; rows: (string | numb
         </tbody>
       </table>
     </div>
+    </>
   );
 }

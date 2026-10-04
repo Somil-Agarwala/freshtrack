@@ -23,9 +23,9 @@ export function StatCard({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-xl border border-line bg-surface p-4", className)}>
-      <p className="text-sm text-ink-dim">{label}</p>
-      <p className={cn("mt-1.5 text-2xl font-semibold tracking-tight", toneStyles[tone])}>{value}</p>
+    <div className={cn("min-w-0 rounded-xl border border-line bg-surface p-3 sm:p-4", className)}>
+      <p className="text-xs text-ink-dim sm:text-sm">{label}</p>
+      <p className={cn("mt-1 break-words text-lg font-semibold tabular-nums tracking-tight sm:mt-1.5 sm:text-2xl", toneStyles[tone])}>{value}</p>
       {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
     </div>
   );

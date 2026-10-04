@@ -109,14 +109,32 @@ tiring on OLED screens.
 
 ## Mobile
 
-- Sidebar is a hover-expanding 72px icon rail at `lg` and above, and an
-  off-canvas drawer below that, opened by the hamburger. Hover does not
-  exist on touch, so entry is an explicit tap.
-- Every table becomes a card stack below `md` (768px). Tables never
-  scroll sideways.
-- Bulk actions appear in a fixed bottom bar, in the thumb zone, offset
-  past the desktop rail.
-- Checkboxes stay visually small but sit inside 40px tappable labels.
+Built for counting and logging pickups on a phone, not just shrunk down:
+
+- **Bottom bar** below 1024px: Home, Collections, Sorted bags,
+  Dispatches, and a raised **+** in the middle that opens *Log a
+  collection* from any screen. Everything else is in the menu (top left).
+- **Search** in the top bar finds collection bags, dispatches, sorted
+  bags, products and parties. On a phone it opens full screen.
+- **Every list is a card stack** below 1024px (two columns on tablets),
+  so nothing is cut off or scrolls sideways.
+- **Filters fold away** behind a *Filters* button that shows how many are
+  set; the search box stays visible.
+- **Forms**: 16px text in every field (iOS zooms the page into anything
+  smaller), 44px tap targets, and the digit keypad for counts and amounts.
+- **Always-reachable actions**: the count sheet's running total and
+  *Mark as counted*, and *Save record* on New entry, stay pinned above the
+  bottom bar. Dialogs are bottom sheets with the buttons always on screen.
+- **Toasts** appear under the top bar, so a confirmation is never off
+  screen at the far end of a long list.
+- **Bulk actions** sit in a bar above the bottom navigation.
+- **Tap to call** a party from the Parties list.
+- **Installable**: *Add to Home Screen* (iOS) or *Install app* (Android,
+  Chrome) opens it full screen with its own icon. Notched phones are
+  handled through safe-area insets.
+
+On desktop the sidebar is a 72px icon rail (labels on hover); *Keep
+expanded* pins it open and pushes the page across, and is remembered.
 
 ## Excel exports
 

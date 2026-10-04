@@ -30,12 +30,30 @@ export function UsersTable() {
     <div className="space-y-4">
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email" className="pl-9" />
+        <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email" className="pl-9" />
       </div>
       <div className="rounded-xl border border-line bg-surface">
         {filtered.length === 0 ? (
           <EmptyState icon={Users} title="No users found" description="Try a different search term." />
         ) : (
+          <>
+          <ul className="divide-y divide-line md:hidden">
+            {filtered.map((u) => (
+              <li key={u.id} className="flex items-center gap-3 px-4 py-3">
+                <Avatar name={u.name} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-ink">{u.name}</p>
+                  <p className="truncate text-xs text-ink-faint">{u.email}</p>
+                  <p className="mt-1 text-xs text-ink-faint">Last active {formatDate(u.lastActive)}</p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <Badge tone="blue">{ROLE_LABELS[u.role]}</Badge>
+                  <Badge tone={u.isActive ? "emerald" : "neutral"}>{u.isActive ? "Active" : "Inactive"}</Badge>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -64,6 +82,8 @@ export function UsersTable() {
               ))}
             </TableBody>
           </Table>
+          </div>
+          </>
         )}
       </div>
     </div>

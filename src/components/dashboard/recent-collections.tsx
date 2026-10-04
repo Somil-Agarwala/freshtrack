@@ -28,14 +28,17 @@ export function RecentCollections() {
             {recent.map((c) => {
               const distributor = distributors.find((d) => d.id === c.distributorId);
               return (
-                <li key={c.id} className="flex items-center justify-between gap-4 px-5 py-3">
-                  <Link href={`/collections/${c.id}`} className="min-w-0">
-                    <p className="truncate font-mono text-sm font-medium text-ink">{c.bagNumber}</p>
-                    <p className="truncate text-xs text-ink-faint">
-                      {distributor?.name} · {formatDate(c.collectedDate)}
-                    </p>
+                <li key={c.id}>
+                  {/* The whole row is the link, not just the text. */}
+                  <Link href={`/collections/${c.id}`} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-elevated sm:px-5">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-sm font-medium text-ink">{c.bagNumber}</p>
+                      <p className="truncate text-xs text-ink-faint">
+                        {distributor?.name} · {formatDate(c.collectedDate)}
+                      </p>
+                    </div>
+                    <CollectionStatusBadge status={c.status} />
                   </Link>
-                  <CollectionStatusBadge status={c.status} />
                 </li>
               );
             })}

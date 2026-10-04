@@ -75,17 +75,17 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
 
       <Notice message={notice} />
 
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-mono text-2xl font-semibold text-ink">{collection.bagNumber}</h1>
+      <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="break-all font-mono text-xl font-semibold text-ink sm:text-2xl">{collection.bagNumber}</h1>
             <CollectionStatusBadge status={collection.status} />
           </div>
           <p className="mt-1 text-sm text-ink-dim">
             {company?.name} · {distributor?.name} · {distributor?.region}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 max-sm:[&>*]:flex-1">
           {!counting && collection.status !== "packed" && (
             <Button onClick={startCounting}>
               <ClipboardCheck className="h-4 w-4" />
@@ -98,7 +98,7 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:mb-6 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Counted pieces"
           value={collection.status === "uncounted" ? "Not counted" : formatNumber(totalPieces)}
@@ -136,9 +136,31 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
         </div>
       ) : (
         <div className="rounded-xl border border-line bg-surface">
-          <div className="border-b border-line px-5 py-4">
+          <div className="border-b border-line px-4 py-4 sm:px-5">
             <h2 className="text-base font-semibold text-ink">Counted contents</h2>
           </div>
+          {/* Phones: one row per SKU, so value and packing status are not cut off. */}
+          <ul className="divide-y divide-line md:hidden">
+            {lines.map((line) => {
+              const product = products.find((p) => p.id === line.productId);
+              return (
+                <li key={line.id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink">{product?.name}</p>
+                      <p className="mt-0.5 font-mono text-xs text-ink-faint">{product?.sku} · MRP {formatCurrency(line.mrp)}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-semibold tabular-nums text-ink">{formatNumber(line.quantity)} pcs</p>
+                      <p className="text-xs tabular-nums text-ink-dim">{formatCurrency(line.quantity * line.mrp)}</p>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-xs text-ink-faint">{line.packed ? "Packed" : "Awaiting packing"}</p>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -166,6 +188,7 @@ export function CollectionDetailView({ collectionId }: { collectionId: string })
               })}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
     </div>

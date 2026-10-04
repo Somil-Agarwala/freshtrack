@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,14 @@ export function CountSheet({
   const company = companies.find((c) => c.id === companyId);
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const productRef = useRef<HTMLSelectElement>(null);
+
+  // The sheet opens below the stat cards, which on a phone is off-screen;
+  // bring it up so the person counting sees it open.
+  useEffect(() => {
+    rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const totalPieces = lines.reduce((sum, l) => sum + l.quantity, 0);
   const totalValue = lines.reduce((sum, l) => {
@@ -65,6 +73,8 @@ export function CountSheet({
     }
     setProductId("");
     setQuantity("");
+    // Straight back to the product list for the next SKU.
+    productRef.current?.focus();
   }
 
   function removeLine(key: string) {
@@ -77,19 +87,19 @@ export function CountSheet({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-surface">
-      <div className="border-b border-line px-5 py-4">
+    <div ref={rootRef} className="scroll-mt-20 rounded-xl border border-line bg-surface">
+      <div className="border-b border-line px-4 py-4 sm:px-5">
         <h2 className="text-base font-semibold text-ink">Count sheet</h2>
         <p className="mt-0.5 text-sm text-ink-dim">
           Add each SKU as you count it. Only {company?.name ?? "this company"} products are listed, and the MRP comes from the product.
         </p>
       </div>
 
-      <div className="border-b border-line px-5 py-4">
+      <div className="border-b border-line px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Label htmlFor="countProduct">Product</Label>
-            <Select id="countProduct" value={productId} onChange={(e) => setProductId(e.target.value)}>
+            <Select ref={productRef} id="countProduct" value={productId} onChange={(e) => setProductId(e.target.value)}>
               <option value="">Select a SKU</option>
               {activeProducts.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -104,6 +114,7 @@ export function CountSheet({
               id="countQty"
               type="number"
               min={1}
+              enterKeyHint="done"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               onKeyDown={(e) => {
@@ -132,11 +143,12 @@ export function CountSheet({
           {lines.map((line) => {
             const product = products.find((p) => p.id === line.productId);
             return (
-              <li key={line.key} className="flex items-center gap-3 px-5 py-3">
+              <li key={line.key} className="flex items-center gap-3 px-4 py-3 sm:px-5">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-ink">{product?.name}</p>
                   <p className="text-xs text-ink-faint">
                     {product?.sku} · MRP {product?.mrp}
+                    <span className="sm:hidden"> · {formatCurrency((product?.mrp ?? 0) * line.quantity)}</span>
                   </p>
                 </div>
                 <Input
@@ -144,7 +156,8 @@ export function CountSheet({
                   min={1}
                   value={line.quantity}
                   onChange={(e) => updateQuantity(line.key, e.target.value)}
-                  className="h-9 w-24"
+                  aria-label={`Pieces of ${product?.name ?? "this SKU"}`}
+                  className="w-20 sm:h-9 sm:w-24"
                 />
                 <span className="hidden w-24 text-right text-sm text-ink-dim sm:block">
                   {formatCurrency((product?.mrp ?? 0) * line.quantity)}
@@ -162,7 +175,9 @@ export function CountSheet({
         </ul>
       )}
 
-      <div className="flex flex-col gap-3 border-t border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Pinned to the bottom of the screen while counting a long bag, so the
+          running total and the finish button are always in reach. */}
+      <div className="sticky bottom-[var(--nav-h)] z-10 flex flex-col gap-3 rounded-b-xl border-t border-line bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="text-sm">
           <p className="font-medium text-ink">
             {formatNumber(totalPieces)} pieces counted · {formatCurrency(totalValue)}
@@ -173,7 +188,7 @@ export function CountSheet({
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 max-sm:[&>*]:flex-1">
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
           <Button onClick={onSave} disabled={lines.length === 0 || totalPieces === 0}>
             Mark as counted

@@ -7,6 +7,7 @@ import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterPanel } from "@/components/ui/filter-panel";
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { PageHeader } from "@/components/ui/page-header";
@@ -22,13 +23,13 @@ import { formatCurrency, formatDate, formatNumber, pluralize } from "@/lib/utils
 import type { SortedBagStatus } from "@/types";
 import { PackingPanel } from "./packing-panel";
 
-export function SortedBagsView() {
+export function SortedBagsView({ initialSearch = "" }: { initialSearch?: string }) {
   const { sortedBags, companies, countLines, collections, products, packPendingLines, deleteSortedBags, createDispatch } = useStore();
   const [statusFilter, setStatusFilter] = useState<"all" | SortedBagStatus>("all");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [mrpFilter, setMrpFilter] = useState("all");
   const [partyFilter, setPartyFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -141,7 +142,7 @@ export function SortedBagsView() {
 
       <Notice message={notice} />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Ready to send" value={String(readyBags.length)} tone={readyBags.length > 0 ? "accent" : "default"} />
         <StatCard label="Value ready" value={formatCurrency(readyValue)} />
         <StatCard label="Pieces ready" value={formatNumber(readyBags.reduce((s, b) => s + b.pieceCount, 0))} />
@@ -150,48 +151,61 @@ export function SortedBagsView() {
 
       <PackingPanel tiers={tiers} onPack={handlePack} />
 
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <FilterPanel
+        activeCount={[statusFilter, companyFilter, mrpFilter, partyFilter].filter((f) => f !== "all").length}
+        onClearFilters={() => {
+          setStatusFilter("all");
+          setCompanyFilter("all");
+          setMrpFilter("all");
+          setPartyFilter("all");
+        }}
+        search={
           <div className="relative sm:w-48">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Bag number" className="pl-9" />
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Bag number" className="pl-9" />
           </div>
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | SortedBagStatus)} className="sm:w-40">
-            <option value="all">All statuses</option>
-            {Object.entries(SORTED_BAG_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </Select>
-          <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="sm:w-44">
-            <option value="all">All companies</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </Select>
-          <Select value={mrpFilter} onChange={(e) => setMrpFilter(e.target.value)} className="sm:w-36">
-            <option value="all">All MRP</option>
-            {mrpOptions.map((mrp) => (
-              <option key={mrp} value={String(mrp)}>MRP {mrp}</option>
-            ))}
-          </Select>
-          <Select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="sm:w-48">
-            <option value="all">All parties</option>
-            {distributors.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={toggleSelectAll}
-            disabled={filtered.length === 0}
-            className="whitespace-nowrap text-sm font-medium text-accent hover:text-accent-hi disabled:pointer-events-none disabled:text-ink-faint"
-          >
-            {allFilteredSelected ? "Clear selection" : `Select all ${filtered.length}`}
-          </button>
-          <p className="whitespace-nowrap text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "bag")}</p>
-        </div>
-      </div>
+        }
+        filters={
+          <>
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | SortedBagStatus)} className="sm:w-40">
+              <option value="all">All statuses</option>
+              {Object.entries(SORTED_BAG_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </Select>
+            <Select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="sm:w-44">
+              <option value="all">All companies</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+            <Select value={mrpFilter} onChange={(e) => setMrpFilter(e.target.value)} className="sm:w-36">
+              <option value="all">All MRP</option>
+              {mrpOptions.map((mrp) => (
+                <option key={mrp} value={String(mrp)}>MRP {mrp}</option>
+              ))}
+            </Select>
+            <Select value={partyFilter} onChange={(e) => setPartyFilter(e.target.value)} className="sm:w-48">
+              <option value="all">All parties</option>
+              {distributors.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </Select>
+          </>
+        }
+        summary={
+          <>
+            <button
+              onClick={toggleSelectAll}
+              disabled={filtered.length === 0}
+              className="-my-2 whitespace-nowrap py-2 text-sm font-medium text-accent hover:text-accent-hi disabled:pointer-events-none disabled:text-ink-faint"
+            >
+              {allFilteredSelected ? "Clear selection" : `Select all ${filtered.length}`}
+            </button>
+            <p className="whitespace-nowrap text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "bag")}</p>
+          </>
+        }
+      />
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-line bg-surface">
@@ -203,7 +217,7 @@ export function SortedBagsView() {
         </div>
       ) : (
         <>
-          <div className="hidden rounded-xl border border-line bg-surface md:block">
+          <div className="hidden rounded-xl border border-line bg-surface lg:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -244,7 +258,7 @@ export function SortedBagsView() {
             </Table>
           </div>
 
-          <div className="space-y-3 md:hidden">
+          <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
             {filtered.map((bag) => (
               <div key={bag.id} className="flex items-start gap-1 rounded-xl border border-line bg-surface p-3 pr-4">
                 <label className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center">

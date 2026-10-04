@@ -59,21 +59,23 @@ export function DispatchesView() {
 
       <Notice message={notice} />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Total claimed" value={formatCurrency(totalClaimed)} />
         <StatCard label="Total received" value={formatCurrency(totalReceived)} tone="accent" />
         <StatCard label="Outstanding" value={formatCurrency(outstanding)} tone={outstanding > 0 ? "amber" : "default"} />
         <StatCard label="Dispatches" value={String(dispatches.length)} />
       </div>
 
-      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface p-4">
-        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | DispatchStatus)} className="w-52">
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface p-3 sm:p-4">
+        <div className="min-w-0 flex-1 sm:flex-none">
+        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "all" | DispatchStatus)} className="sm:w-52">
           <option value="all">All statuses</option>
           {Object.entries(DISPATCH_STATUS_LABELS).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </Select>
-        <p className="text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "dispatch", "dispatches")}</p>
+        </div>
+        <p className="shrink-0 text-sm text-ink-dim">{filtered.length} {pluralize(filtered.length, "dispatch", "dispatches")}</p>
       </div>
 
       {filtered.length === 0 ? (
@@ -87,7 +89,7 @@ export function DispatchesView() {
         </div>
       ) : (
         <>
-          <div className="hidden rounded-xl border border-line bg-surface md:block">
+          <div className="hidden rounded-xl border border-line bg-surface lg:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -128,7 +130,7 @@ export function DispatchesView() {
             </Table>
           </div>
 
-          <div className="space-y-3 md:hidden">
+          <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
             {filtered.map((d) => (
               <div key={d.id} className="flex items-start gap-1 rounded-xl border border-line bg-surface p-3 pr-4">
                 <label className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center">
@@ -139,8 +141,9 @@ export function DispatchesView() {
                     <div className="min-w-0">
                       <p className="truncate font-mono text-sm font-medium text-ink">{d.dispatchNumber}</p>
                       <p className="mt-0.5 text-sm text-ink-dim">
-                        {companies.find((c) => c.id === d.companyId)?.name} · {d.bagCount} bags · {formatNumber(d.pieceCount)} pcs
+                        {companies.find((c) => c.id === d.companyId)?.name} · {d.bagCount} {pluralize(d.bagCount, "bag")} · {formatNumber(d.pieceCount)} pcs
                       </p>
+                      <p className="mt-0.5 text-xs text-ink-faint">Sent {formatDate(d.sentDate)}</p>
                     </div>
                     <Badge tone={DISPATCH_STATUS_TONE[d.status]}>{DISPATCH_STATUS_LABELS[d.status]}</Badge>
                   </div>
