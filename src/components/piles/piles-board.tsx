@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { num } from "@/lib/format";
+import { daysSince, fullDate, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { BAG_CAPACITY, NEAR_FULL, allPiles } from "@/lib/pipeline";
+import { BAG_CAPACITY, NEAR_FULL, allPiles, bagContents, readyBags } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MrpCircle } from "@/components/ft/brand";
-import { LayersIcon, SackIcon } from "@/components/ft/icons";
+import { ChevronRightIcon, LayersIcon, SackIcon } from "@/components/ft/icons";
+import { Pill } from "@/components/ft/kit";
 import { BigButton, CompanyTabs, ListHeader, PileBar, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
 import { Dialog } from "@/components/ui/dialog";
 
@@ -20,11 +21,14 @@ export function PilesBoard() {
   const params = useSearchParams();
   const { can } = useSession();
   const { t, lang } = useLang();
-  const { companies, countLines, tieFullBags, packPendingForCompany } = useStore();
+  const { companies, countLines, sortedBags, collections, distributors, tieFullBags, packPendingForCompany } = useStore();
   const [confirmLeftovers, setConfirmLeftovers] = useState(false);
+  const [openPile, setOpenPile] = useState<number | null>(null);
 
   const tiers = useMemo(() => allPiles(countLines), [countLines]);
-  const withPiles = companies.filter((c) => tiers.some((p) => p.companyId === c.id));
+  const ready = useMemo(() => readyBags(sortedBags), [sortedBags]);
+  // A company shows here while it has loose pieces or tied bags in the godown.
+  const withPiles = companies.filter((c) => tiers.some((p) => p.companyId === c.id) || ready.some((b) => b.companyId === c.id));
   const fullCount = (id: string) => tiers.filter((p) => p.companyId === id).reduce((s, p) => s + p.fullBags, 0);
 
   // Open on the company with the most bags waiting to be tied.
@@ -38,6 +42,12 @@ export function PilesBoard() {
     .filter((p) => p.companyId === companyId)
     .sort((a, b) => b.fullBags - a.fullBags || b.remainder - a.remainder);
   const toTie = piles.reduce((s, p) => s + p.fullBags, 0);
+  const tiedHere = ready.filter((b) => b.companyId === companyId);
+  const tiedByMrp = Array.from(new Set(tiedHere.map((b) => b.mrp)))
+    .sort((a, b) => a - b)
+    .map((mrp) => ({ mrp, bags: tiedHere.filter((b) => b.mrp === mrp).sort((a, b) => a.bagNumber.localeCompare(b.bagNumber)) }));
+  const partyOf = (collectionId: string) => distributors.find((d) => d.id === collections.find((c) => c.id === collectionId)?.distributorId)?.name ?? "—";
+  const looseBagCount = (mrp: number) => new Set(countLines.filter((l) => !l.packed && l.companyId === companyId && l.mrp === mrp).map((l) => l.collectionId)).size;
   const loose = piles.reduce((s, p) => s + p.remainder, 0);
 
   const go = (ids: string[]) => ids.length && router.push(`/piles/tied?ids=${ids.join(",")}`);
@@ -59,7 +69,10 @@ export function PilesBoard() {
       </ListHeader>
 
       <ScreenBody className="gap-2.5">
-        {piles.length === 0 && (
+        {piles.length === 0 && tiedHere.length > 0 && (
+          <p className="rounded-2xl bg-surface p-3.5 text-[15px] text-ink-dim">{t("कोई खुला माल नहीं — सब बैग में बँध चुका है", "No loose pieces — everything is tied into bags")}</p>
+        )}
+        {piles.length === 0 && tiedHere.length === 0 && (
           <div className="rounded-[20px] border border-line bg-surface px-4 py-10 text-center">
             <p className="font-display text-2xl font-extrabold">{t("कोई ढेर नहीं", "No piles")}</p>
             <p className="mt-1 text-ink-dim">{t("बैग गिनने के बाद माल यहाँ दिखेगा", "Counted goods show up here")}</p>
@@ -71,7 +84,15 @@ export function PilesBoard() {
             const full = pile.fullBags > 0;
             const need = BAG_CAPACITY - pile.remainder;
             return (
-              <section key={pile.mrp} className={cn("rounded-[20px] p-3.5", full ? "border-2 border-pile bg-pile-deep" : "border border-line bg-surface")}>
+              <section
+                key={pile.mrp}
+                role="button"
+                tabIndex={0}
+                onClick={() => setOpenPile(pile.mrp)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setOpenPile(pile.mrp)}
+                aria-label={t(`₹${pile.mrp} ढेर की पूरी जानकारी`, `₹${pile.mrp} pile details`)}
+                className={cn("cursor-pointer rounded-[20px] p-3.5 transition-colors", full ? "border-2 border-pile bg-pile-deep" : "border border-line bg-surface hover:bg-elevated")}
+              >
                 <div className="flex items-center gap-3">
                   <MrpCircle mrp={pile.mrp} size={56} />
                   <span className="flex-1">
@@ -110,10 +131,63 @@ export function PilesBoard() {
                     <PileBar existing={pile.remainder} capacity={BAG_CAPACITY} label={`${pile.remainder} of ${BAG_CAPACITY}`} />
                   </div>
                 </div>
+                <div className="mt-2.5 flex items-center justify-between text-sm text-ink-dim">
+                  <span>
+                    {t(`${looseBagCount(pile.mrp)} पिकअप बैग से`, `from ${looseBagCount(pile.mrp)} pickup bags`)}
+                    {tiedHere.some((b) => b.mrp === pile.mrp) && ` · ${t(`${tiedHere.filter((b) => b.mrp === pile.mrp).length} बैग बँधे`, `${tiedHere.filter((b) => b.mrp === pile.mrp).length} tied`)}`}
+                  </span>
+                  <span className="flex items-center gap-0.5 font-bold text-pile-soft">
+                    {t("पूरी जानकारी", "Details")}
+                    <ChevronRightIcon size={16} />
+                  </span>
+                </div>
               </section>
             );
           })}
         </div>
+
+        {tiedByMrp.length > 0 && (
+          <section className="mt-2 flex flex-col gap-2">
+            <h2 className="mx-0.5 font-display text-[21px] font-extrabold">
+              {t("गोदाम में बँधे बैग", "Tied bags in the godown")}{" "}
+              <span className="font-sans text-sm font-medium text-ink-faint">· {tiedHere.length}</span>
+            </h2>
+            <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
+              {tiedByMrp.map(({ mrp, bags }) => (
+                <div key={mrp} className="rounded-[20px] border border-line bg-surface p-3.5">
+                  <div className="mb-2 flex items-center gap-2.5">
+                    <MrpCircle mrp={mrp} size={36} />
+                    <b className="flex-1 text-base">
+                      {bags.length} {t("बैग", "bags")} · {num(bags.reduce((s, b) => s + b.pieceCount, 0))} {t("पीस", "pcs")}
+                    </b>
+                  </div>
+                  <ol className="flex flex-col divide-y divide-line">
+                    {bags.map((b, i) => {
+                      const names = Array.from(new Set(bagContents(b, countLines).map((c) => partyOf(c.collectionId))));
+                      return (
+                        <li key={b.id}>
+                          <Link href={`/sorted-bags?q=${b.bagNumber}`} className="flex items-center gap-2.5 py-2">
+                            <span className="w-6 shrink-0 text-right text-sm font-bold text-ink-faint">{i + 1}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-mono text-[15px] font-semibold">{b.bagNumber}</span>
+                              <span className="block truncate text-[13px] text-ink-dim">
+                                {num(b.pieceCount)} {t("पीस", "pcs")}
+                                {!b.isFull && ` (${t("आधा", "part")})`} · {names.length ? `${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ""}` : "—"}
+                              </span>
+                            </span>
+                            <Pill tone={daysSince(b.createdDate) >= 14 ? "danger" : "factory"} className="px-2 py-0.5 text-xs">
+                              {daysSince(b.createdDate) === 0 ? t("आज", "today") : t(`${daysSince(b.createdDate)} दिन`, `${daysSince(b.createdDate)}d`)}
+                            </Pill>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {loose > 0 && can("tieSend") && (
           <button
@@ -136,6 +210,8 @@ export function PilesBoard() {
           </BigButton>
         </ScreenFooter>
       )}
+
+      {openPile !== null && company && <PileSheet companyId={company.id} mrp={openPile} onClose={() => setOpenPile(null)} />}
 
       <Dialog
         open={confirmLeftovers}
@@ -163,5 +239,91 @@ export function PilesBoard() {
         </Link>
       </Dialog>
     </Screen>
+  );
+}
+
+/** One pile in full: every pickup bag whose pieces lie in it, item by item, and the bags already tied from it. */
+function PileSheet({ companyId, mrp, onClose }: { companyId: string; mrp: number; onClose: () => void }) {
+  const { t, lang } = useLang();
+  const { companies, countLines, collections, distributors, products, sortedBags } = useStore();
+  const company = companies.find((c) => c.id === companyId);
+  const loose = countLines.filter((l) => !l.packed && l.companyId === companyId && l.mrp === mrp);
+  const total = loose.reduce((s, l) => s + l.quantity, 0);
+
+  // Oldest pickup first: the order its pieces go into the next bag.
+  const pickups = Array.from(new Set(loose.map((l) => l.collectionId)))
+    .map((id) => {
+      const bag = collections.find((c) => c.id === id);
+      const items = Array.from(
+        loose.filter((l) => l.collectionId === id).reduce((m, l) => m.set(l.productId, (m.get(l.productId) ?? 0) + l.quantity), new Map<string, number>())
+      );
+      return { id, bag, items, pieces: items.reduce((s, [, q]) => s + q, 0) };
+    })
+    .sort((a, b) => (a.bag?.collectedDate ?? "").localeCompare(b.bag?.collectedDate ?? "") || (a.bag?.bagNumber ?? "").localeCompare(b.bag?.bagNumber ?? ""));
+  const tied = readyBags(sortedBags, companyId)
+    .filter((b) => b.mrp === mrp)
+    .sort((a, b) => a.bagNumber.localeCompare(b.bagNumber));
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={t(`${company?.name} · ₹${mrp} का ढेर`, `${company?.name} · ₹${mrp} pile`)}
+      description={t(
+        `${num(total)} पीस खुले · ${pickups.length} पिकअप बैग से · ${tied.length} बैग बँधे`,
+        `${num(total)} loose pieces · from ${pickups.length} pickup bags · ${tied.length} tied`
+      )}
+    >
+      <p className="mb-2 text-[15px] font-bold">
+        {t("ढेर में किसका माल है", "What is in the pile")} <span className="font-medium text-ink-faint">· {t("पुराना पहले", "oldest first")}</span>
+      </p>
+      {pickups.length === 0 && <p className="text-ink-dim">{t("ढेर ख़ाली है", "The pile is empty")}</p>}
+      <div className="flex flex-col gap-2">
+        {pickups.map((p, i) => (
+          <Link key={p.id} href={`/collections/${p.id}`} className="block rounded-2xl bg-elevated p-3 hover:bg-raised">
+            <div className="flex items-center gap-2.5">
+              <span className="w-6 shrink-0 text-right text-sm font-bold text-ink-faint">{i + 1}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-mono text-[15px] font-semibold">{p.bag?.bagNumber ?? "—"}</span>
+                <span className="block truncate text-[13px] text-ink-dim">
+                  {distributors.find((d) => d.id === p.bag?.distributorId)?.name ?? "—"}
+                  {p.bag?.countedDate ? ` · ${t("गिना", "counted")} ${fullDate(p.bag.countedDate, lang)}` : ""}
+                </span>
+              </span>
+              <b className="shrink-0">
+                {num(p.pieces)} {t("पीस", "pcs")}
+              </b>
+            </div>
+            <div className="mt-1.5 flex flex-col gap-0.5 pl-[34px] text-[13px] text-ink-dim">
+              {p.items.map(([productId, qty]) => (
+                <span key={productId} className="flex justify-between gap-2">
+                  <span className="truncate">{products.find((x) => x.id === productId)?.name ?? "—"}</span>
+                  <span>{num(qty)}</span>
+                </span>
+              ))}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {tied.length > 0 && (
+        <>
+          <p className="mb-2 mt-4 text-[15px] font-bold">
+            {t("इस ढेर से बँधे बैग", "Bags tied from this pile")} <span className="font-medium text-ink-faint">· {tied.length}</span>
+          </p>
+          <div className="flex flex-col divide-y divide-line rounded-2xl bg-elevated px-3">
+            {tied.map((b) => (
+              <Link key={b.id} href={`/sorted-bags?q=${b.bagNumber}`} className="flex items-center gap-2.5 py-2.5">
+                <SackIcon size={18} className="shrink-0 text-pile" />
+                <span className="min-w-0 flex-1 truncate font-mono text-[15px] font-semibold">{b.bagNumber}</span>
+                <span className="text-sm text-ink-dim">
+                  {num(b.pieceCount)} {t("पीस", "pcs")}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+    </Dialog>
   );
 }
