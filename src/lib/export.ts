@@ -127,18 +127,19 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
   );
 }
 
-/** The manifest for one completed factory run. */
+/**
+ * The manifest for one factory run, as sent to the factory: the bags, and
+ * the items in each bag. Party names are left out on purpose.
+ */
 export function exportDispatch({
   dispatch,
   bags,
-  collections,
-  distributors,
+  products,
   companies,
 }: {
   dispatch: Dispatch;
   bags: SortedBag[];
-  collections: CollectionBag[];
-  distributors: Distributor[];
+  products: Product[];
   companies: Company[];
 }) {
   const header: Row[] = [
@@ -151,24 +152,31 @@ export function exportDispatch({
     { Field: "Received Value (INR)", Value: dispatch.receivedValue ?? "Not settled yet" },
   ];
 
-  const manifest: Row[] = bags.map((bag) => {
-    const parties = bag.sourceCollectionIds
-      .map((id) => collections.find((c) => c.id === id))
-      .map((c) => distributors.find((d) => d.id === c?.distributorId)?.name)
-      .filter((name): name is string => Boolean(name));
-    return {
-      "Bag Number": bag.bagNumber,
-      "MRP (INR)": bag.mrp,
-      Pieces: bag.pieceCount,
-      "Claim Value (INR)": bagValue(bag),
-      Parties: Array.from(new Set(parties)).join(", "),
-    };
-  });
+  const sorted = bags.slice().sort((a, b) => a.bagNumber.localeCompare(b.bagNumber));
+  const manifest: Row[] = sorted.map((bag) => ({
+    "Bag Number": bag.bagNumber,
+    "MRP (INR)": bag.mrp,
+    Pieces: bag.pieceCount,
+    "Claim Value (INR)": bagValue(bag),
+  }));
+
+  // One row per item per bag: what the factory checks each bag against.
+  const contents: Row[] = sorted.flatMap((bag) =>
+    bag.items?.length
+      ? bag.items.map((item) => ({
+          "Bag Number": bag.bagNumber,
+          "MRP (INR)": bag.mrp,
+          Item: products.find((p) => p.id === item.productId)?.name ?? item.productId,
+          Pieces: item.pieces,
+        }))
+      : [{ "Bag Number": bag.bagNumber, "MRP (INR)": bag.mrp, Item: "Items not recorded", Pieces: bag.pieceCount }]
+  );
 
   download(
     [
       { name: "Dispatch Summary", rows: header },
       { name: "Bag Manifest", rows: manifest },
+      { name: "Bag Contents", rows: contents },
     ],
     `${dispatch.dispatchNumber}-${new Date().toISOString().slice(0, 10)}.xlsx`
   );

@@ -1,5 +1,5 @@
 import { lineValue } from "./claim";
-import type { BagContent, Company, CountLine, SortedBag } from "@/types";
+import type { BagContent, BagItem, Company, CountLine, SortedBag } from "@/types";
 
 /** Pieces per sorted bag. Change here and every projection follows. */
 export const BAG_CAPACITY = 700;
@@ -217,32 +217,35 @@ export function peekCollectionNumbers(
 export { bagValue as sortedBagValue } from "./claim";
 
 /**
- * Records which pickups each new bag's pieces came from. Bags of one
+ * Records which pickups each new bag's pieces came from, and which items
+ * they are (for the factory invoice). Bags of one
  * company + MRP are filled in the order they were created, from `lines`
  * oldest pickup first -- the same order the pieces were taken from the
  * pile. `collectedOn` maps a collection id to its pickup date.
  */
 export function fillBagContents(bags: SortedBag[], lines: CountLine[], collectedOn: Map<string, string>): SortedBag[] {
-  const queues = new Map<string, { collectionId: string; left: number; rate: number }[]>();
+  const queues = new Map<string, { collectionId: string; productId: string; left: number; rate: number }[]>();
   lines
     .slice()
     .sort((a, b) => (collectedOn.get(a.collectionId) ?? "").localeCompare(collectedOn.get(b.collectionId) ?? "") || a.id.localeCompare(b.id))
     .forEach((line) => {
       const key = `${line.companyId}::${line.mrp}`;
       const queue = queues.get(key) ?? [];
-      queue.push({ collectionId: line.collectionId, left: line.quantity, rate: line.rate ?? line.mrp });
+      queue.push({ collectionId: line.collectionId, productId: line.productId, left: line.quantity, rate: line.rate ?? line.mrp });
       queues.set(key, queue);
     });
 
   return bags.map((bag) => {
     const queue = queues.get(`${bag.companyId}::${bag.mrp}`) ?? [];
     const byCollection = new Map<string, { pieces: number; value: number }>();
+    const byProduct = new Map<string, number>();
     let need = bag.pieceCount;
     while (need > 0 && queue.length > 0) {
       const head = queue[0];
       const take = Math.min(need, head.left);
       const sofar = byCollection.get(head.collectionId) ?? { pieces: 0, value: 0 };
       byCollection.set(head.collectionId, { pieces: sofar.pieces + take, value: sofar.value + take * head.rate });
+      byProduct.set(head.productId, (byProduct.get(head.productId) ?? 0) + take);
       head.left -= take;
       need -= take;
       if (head.left === 0) queue.shift();
@@ -250,6 +253,7 @@ export function fillBagContents(bags: SortedBag[], lines: CountLine[], collected
     const contents: BagContent[] = Array.from(byCollection, ([collectionId, c]) => ({ collectionId, pieces: c.pieces, value: Math.round(c.value * 100) / 100 }));
     if (!contents.length) return bag;
     const claimValue = Math.round(contents.reduce((s, c) => s + (c.value ?? 0), 0) * 100) / 100;
-    return { ...bag, contents, claimValue, sourceCollectionIds: contents.map((c) => c.collectionId) };
+    const items: BagItem[] = Array.from(byProduct, ([productId, pieces]) => ({ productId, pieces })).sort((a, b) => b.pieces - a.pieces);
+    return { ...bag, contents, items, claimValue, sourceCollectionIds: contents.map((c) => c.collectionId) };
   });
 }

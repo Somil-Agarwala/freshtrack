@@ -156,10 +156,22 @@ export interface SortedBag {
    * splitting by sourceCollectionIds.
    */
   contents?: BagContent[];
+  /**
+   * Which items are in the bag and how many pieces of each, recorded when
+   * the bag is tied. This is what the factory invoice lists bag by bag.
+   * Missing on bags tied before items were recorded.
+   */
+  items?: BagItem[];
   /** User who tied the bag. */
   tiedBy?: string;
   /** Claim value of the bag at the pieces' claim rates. Unset = pieces × MRP. */
   claimValue?: number;
+}
+
+/** Pieces of one item inside a tied bag. */
+export interface BagItem {
+  productId: string;
+  pieces: number;
 }
 
 export interface BagContent {

@@ -17,12 +17,13 @@ import { PrintSheet } from "@/components/ft/print-sheet";
 import { BigButton, Screen, ScreenBody, ScreenFooter, TaskHeader } from "@/components/ft/screen";
 import { Notice } from "@/components/ui/notice";
 import { Slip, slipRows } from "@/components/send/send-done";
+import { BagContentsSheet, bagItemSummary } from "@/components/send/bag-contents";
 import { RecordPayment } from "./money-screen";
 
 /** One factory run: the slip, whose goods were on it, and its payment. */
 export function RunDetail({ dispatchId }: { dispatchId: string }) {
   const { t, lang } = useLang();
-  const { dispatches, companies, sortedBags, collections, countLines, distributors, recordSettlement } = useStore();
+  const { dispatches, companies, sortedBags, collections, countLines, distributors, products, recordSettlement } = useStore();
   const [recording, setRecording] = useState(false);
   const { can } = useSession();
   const [message, flash] = useFlash();
@@ -118,13 +119,16 @@ export function RunDetail({ dispatchId }: { dispatchId: string }) {
               <p className="text-[15px] font-bold">
                 {t("बैग", "Bags")} <span className="font-medium text-ink-faint">· {bags.length}</span>
               </p>
-              <ExportButton onClick={() => exportDispatch({ dispatch: d, bags, collections, distributors, companies })} />
+              <ExportButton onClick={() => exportDispatch({ dispatch: d, bags, products, companies })} />
             </div>
             <div className="flex flex-col divide-y divide-line">
               {bags.map((b) => (
                 <Link key={b.id} href={`/sorted-bags?q=${b.bagNumber}`} className="flex items-center gap-2.5 py-2">
                   <MrpCircle mrp={b.mrp} size={32} />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[15px] font-semibold">{b.bagNumber}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-mono text-[15px] font-semibold">{b.bagNumber}</span>
+                    {b.items?.length ? <span className="block truncate text-[13px] text-ink-dim">{bagItemSummary(b, products)}</span> : null}
+                  </span>
                   <span className="text-sm text-ink-dim">
                     {num(b.pieceCount)} {t("पीस", "pcs")}
                   </span>
@@ -169,6 +173,7 @@ export function RunDetail({ dispatchId }: { dispatchId: string }) {
       <Notice message={message} />
       <PrintSheet>
         <Slip dispatch={d} company={company} rows={slipRows(bags)} />
+        <BagContentsSheet bags={bags} products={products} />
       </PrintSheet>
     </Screen>
   );

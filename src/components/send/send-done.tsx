@@ -13,11 +13,12 @@ import { CompanyAvatar } from "@/components/ft/brand";
 import { ChevronRightIcon, FileIcon, PrinterIcon, RupeeIcon, TruckIcon, WhatsAppIcon } from "@/components/ft/icons";
 import { PrintSheet } from "@/components/ft/print-sheet";
 import { BigLink, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
+import { BagContentsSheet } from "./bag-contents";
 
 /** The run has left: the slip to send the factory with the bags. */
 export function SendDone({ dispatchId }: { dispatchId: string }) {
   const { t, lang } = useLang();
-  const { dispatches, companies, sortedBags, collections, countLines, distributors } = useStore();
+  const { dispatches, companies, sortedBags, collections, countLines, distributors, products } = useStore();
   const dispatch = dispatches.find((d) => d.id === dispatchId);
   const company = companies.find((c) => c.id === dispatch?.companyId);
 
@@ -58,7 +59,7 @@ export function SendDone({ dispatchId }: { dispatchId: string }) {
           </span>
           <div>
             <h1 className="font-display text-[28px] font-extrabold leading-[1.1]">{t("गाड़ी रवाना!", "Run sent!")}</h1>
-            <p className="text-base text-ink-dim">{t(`Dispatch created for ${company.name}`, `${company.name} के लिए चालान बना`)}</p>
+            <p className="text-base text-ink-dim">{t(`${company.name} के लिए चालान बना`, `Dispatch created for ${company.name}`)}</p>
           </div>
         </div>
 
@@ -128,6 +129,7 @@ export function SendDone({ dispatchId }: { dispatchId: string }) {
 
       <PrintSheet>
         <Slip dispatch={dispatch} company={company} rows={rows} />
+        <BagContentsSheet bags={bags} products={products} />
       </PrintSheet>
     </Screen>
   );
