@@ -161,18 +161,19 @@ export function PlaceDialog({ companyId, mrp, onClose, onPrint }: { companyId: s
 /** A placard to put up at a pile: the code huge, readable across the godown. */
 function Placard({ company, mrp, where }: { company?: Company; mrp: number; where?: string }) {
   return (
-    <div className="mb-5 break-inside-avoid rounded-3xl border-4 border-[#111418] p-6 text-center [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
-      <p className="text-xl font-bold">{company?.name} · ढेर / Pile</p>
-      <p className="my-2 font-mono text-[104px] font-bold leading-none tracking-tight">{pileCode(company, mrp)}</p>
-      <div className="flex items-center justify-center gap-4">
-        <MrpCircle mrp={mrp} size={96} />
-        <p className="text-left text-2xl font-bold leading-tight">
+    // One placard per page, big enough to read from across the godown.
+    <div className="flex min-h-[95vh] break-inside-avoid flex-col items-center justify-center gap-6 rounded-3xl border-[6px] border-[#111418] p-8 text-center [break-after:page] [print-color-adjust:exact] last:[break-after:auto] [-webkit-print-color-adjust:exact]">
+      <p className="text-3xl font-bold">{company?.name} · ढेर / Pile</p>
+      <p className="font-mono text-[160px] font-bold leading-none tracking-tight">{pileCode(company, mrp)}</p>
+      <div className="flex items-center justify-center gap-5">
+        <MrpCircle mrp={mrp} size={150} />
+        <p className="text-left text-4xl font-bold leading-tight">
           सिर्फ़ ₹{mrp} MRP का माल
           <br />
-          <span className="text-lg font-semibold">Only ₹{mrp} MRP goods</span>
+          <span className="text-2xl font-semibold">Only ₹{mrp} MRP goods</span>
         </p>
       </div>
-      {where && <p className="mt-3 text-xl">{where}</p>}
+      {where && <p className="text-3xl">{where}</p>}
     </div>
   );
 }
