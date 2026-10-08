@@ -41,14 +41,14 @@ export function DesktopHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bar max-lg:hidden">
-      <div className="mx-auto flex max-w-[1360px] flex-wrap items-center gap-4 px-6 py-3.5">
+      <div className="mx-auto flex max-w-[1360px] flex-wrap items-center gap-3 px-6 py-3.5">
         <Link href="/" className="flex items-center gap-2.5 font-display text-2xl font-extrabold">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-money text-money-ink">
             <SackIcon size={22} strokeWidth={2.4} />
           </span>
           {siteConfig.name}
         </Link>
-        <nav aria-label="Sections" className="flex flex-1 flex-wrap gap-1">
+        <nav aria-label="Sections" className="flex min-w-0 flex-1 flex-wrap gap-0.5">
           {stepLinks.map((link) => {
             const label = link.href === "/" && !can("ownerView") ? { hi: "घर", en: "Home" } : link;
             const on = link.href === "/" ? onDashboard : link.match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
@@ -57,7 +57,7 @@ export function DesktopHeader() {
                 key={link.href}
                 href={link.href}
                 aria-current={on ? "page" : undefined}
-                className={cn("rounded-[10px] px-3.5 py-2 text-[15px]", LINK_TEXT[link.tone], on ? "bg-raised font-bold" : "font-semibold hover:bg-elevated")}
+                className={cn("whitespace-nowrap rounded-[10px] px-3 py-2 text-[15px]", LINK_TEXT[link.tone], on ? "bg-raised font-bold" : "font-semibold hover:bg-elevated")}
               >
                 {t(label.hi, label.en)}
               </Link>
@@ -67,7 +67,7 @@ export function DesktopHeader() {
             type="button"
             onClick={() => setMoreOpen(true)}
             aria-expanded={moreOpen}
-            className="flex items-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[15px] font-semibold text-ink-dim hover:bg-elevated"
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3 py-2 text-[15px] font-semibold text-ink-dim hover:bg-elevated"
           >
             <MenuIcon size={18} />
             {t("और", "More")}
@@ -76,7 +76,7 @@ export function DesktopHeader() {
         {onDashboard && can("ownerView") && (
           <>
             <label className="flex items-center gap-2 text-sm text-ink-dim">
-              {t("कंपनी", "Company")}
+              <span className="max-2xl:sr-only">{t("कंपनी", "Company")}</span>
               <select className={selectClass} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
                 <option value="all">सभी · All</option>
                 {companies.map((c) => (
@@ -87,10 +87,10 @@ export function DesktopHeader() {
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm text-ink-dim">
-              {t("समय", "Period")}
+              <span className="max-2xl:sr-only">{t("समय", "Period")}</span>
               <select className={selectClass} value={period} onChange={(e) => setPeriod(e.target.value as "month" | "90d")}>
-                <option value="month">इस महीने · This month</option>
-                <option value="90d">पिछले 90 दिन · Last 90 days</option>
+                <option value="month">{t("इस महीने", "This month")}</option>
+                <option value="90d">{t("पिछले 90 दिन", "Last 90 days")}</option>
               </select>
             </label>
           </>

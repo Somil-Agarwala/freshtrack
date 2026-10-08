@@ -42,7 +42,7 @@ export function UsersScreen() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-lg font-bold leading-tight">{u.name}</span>
                   <span className="block truncate text-sm text-ink-dim">
-                    {u.email} · {u.isActive ? (days === 0 ? t("आज आए", "active today") : t(`${days} दिन पहले`, `${days} days ago`)) : t("बंद", "inactive")}
+                    {u.email} · {!u.isActive ? t("बंद", "inactive") : !u.lastActive ? t("अभी तक नहीं आए", "not signed in yet") : days === 0 ? t("आज आए", "active today") : t(`${days} दिन पहले`, `${days} days ago`)}
                   </span>
                 </span>
                 <Pill tone={ROLE_TONE[u.role]}>{t(ROLE_LABELS[u.role].hi, ROLE_LABELS[u.role].en)}</Pill>

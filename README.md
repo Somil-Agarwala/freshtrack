@@ -165,15 +165,23 @@ dashboard.
 PINs are checked in the browser, so they tell the app who is working; they
 are not real security until sign-in moves to Supabase auth.
 
-## Real data: Haldiram claim of 16 Aug 2026
+## Starting data
 
-`src/lib/data/haldiram-claim-16082026.ts` is generated from sheet
-"16082026" of `HALDIRAM_DAMAGE_CLAIM_SHEET.xlsx`: 26 Haldiram items with
-their claim rates, 35 parties, and the pieces each party sent. 
-`src/lib/data/haldiram-import.ts` turns it into the app's own records: a
-counted pickup per party, the pieces packed into 409 bags of 700 by MRP,
-and dispatch HLD-DSP-2026-0001 (claim ₹14,45,015.18, passed
-₹13,29,413.97 on 29 Aug). It replaces the earlier made-up Haldiram samples.
+The app starts with master data only, no pickups, counts, bags, dispatches
+or godown entries (`src/lib/seed-data.ts`):
+
+- **Companies**: Cadbury, Haldirams, Unicharm, Red Bull, Lotte, Link.
+- **Haldiram products and dealers** (26 items, 35 parties) from sheet
+  "16082026" of `HALDIRAM_DAMAGE_CLAIM_SHEET.xlsx`, in
+  `src/lib/data/haldiram.ts`. Each item carries Haldiram's claim rate.
+- **Unicharm, Lotte and Red Bull products** (194, one per name and MRP)
+  from the S.S. Commercial stock report `STOCK_GM.xlsx`, in
+  `src/lib/data/stock-products.ts`. The report's rate is per case, so cost
+  price starts at 0 and they are claimed at MRP until a claim rate is set.
+- **Accounts**: Somil (admin), Nikhil and Debu.
+
+Both data files are generated from the spreadsheets; regenerate rather
+than editing by hand.
 
 **Claim rate.** Haldiram pays its own rate per damaged piece (₹3.74 for a
 ₹5 Namkeen), not the MRP. A product's optional `claimRate` is fixed onto

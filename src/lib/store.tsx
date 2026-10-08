@@ -11,7 +11,7 @@ import {
   records as seedRecords,
   users as seedUsers,
   sortedBags as seedSortedBags,
-} from "./mock-data";
+} from "./seed-data";
 import {
   BAG_CAPACITY,
   buildMrpTiers,

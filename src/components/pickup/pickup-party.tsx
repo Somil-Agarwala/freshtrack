@@ -92,7 +92,7 @@ export function PickupParty() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-lg font-bold leading-[1.2]">{party.name}</span>
                   <span className="block truncate text-sm text-ink-dim">
-                    {party.region} · {party.contactName}
+                    {[party.region, party.contactName].filter(Boolean).join(" · ")}
                   </span>
                 </span>
                 <ChevronRightIcon size={22} className="text-ink-faint" />

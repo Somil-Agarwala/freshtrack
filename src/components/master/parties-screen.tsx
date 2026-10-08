@@ -62,7 +62,7 @@ export function PartiesScreen({ initialSearch = "" }: { initialSearch?: string }
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-lg font-bold leading-[1.2]">{d.name}</span>
                     <span className="block truncate text-sm text-ink-dim">
-                      {d.region || "—"} · {d.contactName || "—"}
+                      {[d.region, d.contactName].filter(Boolean).join(" · ") || "—"}
                     </span>
                   </span>
                   {!d.isActive && <Pill tone="neutral">{t("बंद", "Inactive")}</Pill>}

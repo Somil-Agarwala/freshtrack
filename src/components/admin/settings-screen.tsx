@@ -107,7 +107,7 @@ export function SettingsScreen() {
         </section>
 
         <p className="rounded-2xl bg-count-tint p-3.5 text-[15px] text-count-note">
-          {t("अभी डेटाबेस नहीं जुड़ा है, इसलिए पेज रीलोड करने पर नमूना डेटा वापस आ जाता है।", "The database is not connected yet, so reloading the page brings back the sample data.")}
+          {t("अभी डेटाबेस नहीं जुड़ा है, इसलिए पेज रीलोड करने पर सिर्फ़ शुरू की सूची (कंपनी, सामान, पार्टी) बचती है — दर्ज किया काम मिट जाता है।", "The database is not connected yet: a reload keeps only the starting lists (companies, products, parties) and clears entered work.")}
         </p>
       </ScreenBody>
       <Notice message={message} />
