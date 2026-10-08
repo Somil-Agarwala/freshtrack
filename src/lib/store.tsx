@@ -11,6 +11,7 @@ import {
   records as seedRecords,
   users as seedUsers,
   sortedBags as seedSortedBags,
+  pilePlaces as seedPilePlaces,
 } from "./seed-data";
 import {
   BAG_CAPACITY,
@@ -26,7 +27,7 @@ import {
 import { bagValue } from "./claim";
 import { partySharesForBags } from "./pipeline";
 import { today } from "./utils";
-import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, Product, SortedBag, UserAccount } from "@/types";
+import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, PilePlace, Product, SortedBag, UserAccount } from "@/types";
 
 /**
  * One in-memory store shared by every page, so the pipeline genuinely
@@ -50,7 +51,11 @@ interface StoreValue {
   dispatches: Dispatch[];
   records: DamageRecord[];
   users: UserAccount[];
+  /** Where each pile lies in the godown. */
+  pilePlaces: PilePlace[];
 
+  /** Writes where a company's pile of one MRP lies; an empty text clears it. */
+  savePilePlace: (companyId: string, mrp: number, where: string) => void;
   /** Adds the row when its id is new, otherwise replaces it. */
   saveCompany: (company: Company) => void;
   saveProduct: (product: Product) => void;
@@ -109,6 +114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sortedBags, setSortedBags] = useState<SortedBag[]>(seedSortedBags);
   const [dispatches, setDispatches] = useState<Dispatch[]>(seedDispatches);
   const [records, setRecords] = useState<DamageRecord[]>(seedRecords);
+  const [pilePlaces, setPilePlaces] = useState<PilePlace[]>(seedPilePlaces);
 
   /**
    * Forward-only numbering counters, seeded once from the numbers already
@@ -414,6 +420,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRecords((prev) => prev.filter((r) => !idSet.has(r.id)));
   }, []);
 
+  const savePilePlace = useCallback((companyId: string, mrp: number, where: string) => {
+    const text = where.trim();
+    setPilePlaces((prev) => {
+      const rest = prev.filter((p) => !(p.companyId === companyId && p.mrp === mrp));
+      return text ? [...rest, { companyId, mrp, where: text, setBy: actorRef.current, setOn: today() }] : rest;
+    });
+  }, []);
+
   const saveCompany = useCallback((company: Company) => setCompanies((prev) => upsert(prev, company)), []);
   const saveProduct = useCallback((product: Product) => setProducts((prev) => upsert(prev, product)), []);
   const saveDistributor = useCallback((distributor: Distributor) => setDistributors((prev) => upsert(prev, distributor)), []);
@@ -433,6 +447,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dispatches,
       records,
       users,
+      pilePlaces,
+      savePilePlace,
       saveCompany,
       saveProduct,
       saveDistributor,
@@ -465,6 +481,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dispatches,
       records,
       users,
+      pilePlaces,
+      savePilePlace,
       saveCompany,
       saveProduct,
       saveDistributor,

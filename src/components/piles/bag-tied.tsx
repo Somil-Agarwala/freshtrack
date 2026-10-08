@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { bagContents, pilesOf } from "@/lib/pipeline";
+import { pileCode } from "@/lib/places";
 import { useStore } from "@/lib/store";
 import { CompanyAvatar, MrpChip, MrpCircle } from "@/components/ft/brand";
 import { ArrowRightIcon, LayersIcon, PrinterIcon, SackIcon } from "@/components/ft/icons";
@@ -107,8 +108,8 @@ export function BagTied() {
             <div key={mrp} className="flex items-center gap-2.5 rounded-[14px] bg-surface px-3.5 py-3 text-[15px] text-ink-dim">
               <MrpCircle mrp={mrp} size={30} />
               {left > 0
-                ? t(`₹${mrp} के ढेर में अभी ${num(left)} पीस बचे हैं`, `${num(left)} pieces still in the ₹${mrp} pile`)
-                : t(`₹${mrp} का ढेर खाली हो गया`, `The ₹${mrp} pile is empty now`)}
+                ? t(`${pileCode(company, mrp)} ढेर में अभी ${num(left)} पीस बचे हैं`, `${num(left)} pieces still on pile ${pileCode(company, mrp)}`)
+                : t(`${pileCode(company, mrp)} ढेर खाली हो गया`, `Pile ${pileCode(company, mrp)} is empty now`)}
             </div>
           );
         })}

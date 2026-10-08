@@ -13,7 +13,7 @@ import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { CompanyAvatar, MrpCircle } from "@/components/ft/brand";
-import { ArrowRightIcon, CheckIcon, TrashIcon } from "@/components/ft/icons";
+import { ArrowRightIcon, CheckIcon, PinIcon, TrashIcon } from "@/components/ft/icons";
 import { EmptyCard, Pill } from "@/components/ft/kit";
 import { BigButton, BigLink, Screen, ScreenBody, ScreenFooter, TaskHeader } from "@/components/ft/screen";
 
@@ -48,6 +48,8 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
   const value = lines.reduce((s, l) => s + lineValue(l), 0);
   const loose = lines.filter((l) => !l.packed).reduce((s, l) => s + l.quantity, 0);
   const anyPacked = lines.some((l) => l.packed);
+  // Counted pieces not yet tied: the "where to put it" directions still apply.
+  const toPutAway = bag.status === "counted" && loose > 0 && can("pickupCount");
 
   const tied = sortedBags
     .map((sb) => ({ sb, pieces: bagContents(sb, countLines).find((c) => c.collectionId === bag.id)?.pieces ?? 0 }))
@@ -146,7 +148,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
         )}
       </ScreenBody>
 
-      {(confirm || bag.status === "uncounted" || (bag.status === "counted" && !anyPacked)) && (
+      {(confirm || bag.status === "uncounted" || toPutAway || (bag.status === "counted" && !anyPacked)) && (
         <ScreenFooter>
           {confirm ? (
             <>
@@ -170,6 +172,18 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
               {t("गिनती शुरू करें · Start counting", "Start counting · गिनती शुरू करें")}
               <ArrowRightIcon />
             </BigLink>
+          ) : toPutAway ? (
+            <>
+              <BigLink tone="pile" href={`/count/${bag.id}/sort`}>
+                <PinIcon />
+                {t("माल कहाँ रखें", "Where to put the goods")}
+              </BigLink>
+              {!anyPacked && (
+                <Link href={`/count/${bag.id}`} className="flex h-11 items-center justify-center text-base font-bold text-ink-dim">
+                  {t("गिनती ठीक करें", "Correct the count")}
+                </Link>
+              )}
+            </>
           ) : (
             <BigLink tone="neutral" href={`/count/${bag.id}`} className="h-[60px]">
               {t("गिनती ठीक करें", "Correct the count")}
