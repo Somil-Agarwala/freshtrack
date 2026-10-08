@@ -46,8 +46,9 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
   ).sort((a, b) => b[1].qty - a[1].qty);
   const pieces = lines.reduce((s, l) => s + l.quantity, 0);
   const value = lines.reduce((s, l) => s + lineValue(l), 0);
-  const loose = lines.filter((l) => !l.packed).reduce((s, l) => s + l.quantity, 0);
-  const anyPacked = lines.some((l) => l.packed);
+  // Once any of its goods have gone to the factory, the count is final.
+  const sent = lines.some((l) => sortedBags.find((b) => b.id === l.bagId)?.status === "dispatched");
+  const filling = (id: string) => sortedBags.find((b) => b.id === id)?.status === "open";
 
   const tied = sortedBags
     .map((sb) => ({ sb, pieces: bagContents(sb, countLines).find((c) => c.collectionId === bag.id)?.pieces ?? 0 }))
@@ -63,8 +64,10 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
     },
     {
       done: tied.length > 0,
-      title: t("बैग में बँधा", "Tied into bags"),
-      detail: tied.length ? `${tied.length} ${t("बैग", "bags")}${loose ? ` · ${num(loose)} ${t("पीस अभी ढेर में", "pcs still in piles")}` : ""}` : loose ? `${num(loose)} ${t("पीस ढेर में", "pcs in piles")}` : "—",
+      title: t("नंबर वाले बैग में डाला", "Put into numbered bags"),
+      detail: tied.length
+        ? `${tied.length} ${t("बैग", "bags")}${tied.some((x) => filling(x.sb.id)) ? ` · ${tied.filter((x) => filling(x.sb.id)).length} ${t("अभी भर रहे", "still being filled")}` : ""}`
+        : "—",
     },
     { done: runs.length > 0, title: t("फैक्ट्री भेजा", "Sent to factory"), detail: runs.length ? runs.map((r) => r.dispatchNumber).join(", ") : "—" },
   ];
@@ -120,7 +123,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
 
         {tied.length > 0 && (
           <section className="rounded-[20px] border border-line bg-surface px-3.5 py-3">
-            <p className="mb-2 text-[15px] font-bold text-ink-dim">{t("किन बैगों में गया", "Tied into")}</p>
+            <p className="mb-2 text-[15px] font-bold text-ink-dim">{t("किन बैगों में गया", "Which bags it went into")}</p>
             <div className="flex flex-col divide-y divide-line">
               {tied.map(({ sb, pieces: p }) => (
                 <div key={sb.id} className="flex items-center gap-2.5 py-2">
@@ -129,8 +132,8 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
                   <span className="text-sm text-ink-dim">
                     {num(p)} {t("पीस", "pcs")}
                   </span>
-                  <Pill tone={sb.status === "ready" ? "factory" : "money"} className="px-2 py-0.5 text-xs">
-                    {sb.status === "ready" ? t("गोदाम में", "In godown") : t("भेजा", "Sent")}
+                  <Pill tone={sb.status === "open" ? "pile" : sb.status === "ready" ? "factory" : "money"} className="px-2 py-0.5 text-xs">
+                    {sb.status === "open" ? t("भर रहा", "Filling") : sb.status === "ready" ? t("बँधा", "Tied") : t("भेजा", "Sent")}
                   </Pill>
                 </div>
               ))}
@@ -138,7 +141,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
           </section>
         )}
 
-        {!anyPacked && can("delete") && (
+        {!sent && can("delete") && (
           <button type="button" onClick={() => setConfirm(true)} className="flex items-center gap-2 self-start py-2 text-[15px] font-bold text-danger-soft">
             <TrashIcon size={18} />
             {t("यह बैग हटाएँ", "Delete this bag")}
@@ -146,7 +149,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
         )}
       </ScreenBody>
 
-      {(confirm || bag.status === "uncounted" || (bag.status === "counted" && !anyPacked)) && (
+      {(confirm || bag.status === "uncounted" || (pieces > 0 && !sent)) && (
         <ScreenFooter>
           {confirm ? (
             <>
@@ -171,9 +174,15 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
               <ArrowRightIcon />
             </BigLink>
           ) : (
-            <BigLink tone="neutral" href={`/count/${bag.id}`} className="h-[60px]">
-              {t("गिनती ठीक करें", "Correct the count")}
-            </BigLink>
+            <>
+              <BigLink tone="pile" href={`/count/${bag.id}/sort`}>
+                {t("किस बैग में क्या डालें", "What goes in which bag")}
+                <ArrowRightIcon />
+              </BigLink>
+              <Link href={`/count/${bag.id}`} className="flex h-11 items-center justify-center text-base font-bold text-ink-dim">
+                {t("गिनती ठीक करें", "Correct the count")}
+              </Link>
+            </>
           )}
         </ScreenFooter>
       )}

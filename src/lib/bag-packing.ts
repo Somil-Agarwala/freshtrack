@@ -68,108 +68,10 @@ export function seedSequence(
   state[key] = Math.max(state[key] ?? 0, highest);
 }
 
-export interface MrpTier {
-  companyId: string;
-  mrp: number;
-  pieces: number;
-  /** Bags this tier will produce: full bags plus one part-filled remainder. */
-  fullBags: number;
-  remainder: number;
-  totalBags: number;
-  value: number;
-  sourceCollectionIds: string[];
-}
-
-/**
- * Groups unpacked count lines into COMPANY + MRP tiers.
- *
- * Company is the hard boundary: each company settles its own claim at its own
- * factory, so pieces never pool across companies however well the MRP matches.
- * Within one company, pieces DO pool across parties, because that is what
- * fills a bag to capacity instead of leaving a part-filled bag per party.
- * Traceability survives through sourceCollectionIds.
- */
-export function buildMrpTiers(lines: CountLine[]): MrpTier[] {
-  const tiers = new Map<string, { companyId: string; mrp: number; pieces: number; value: number; collections: Set<string> }>();
-
-  lines
-    .filter((line) => !line.packed)
-    .forEach((line) => {
-      const key = `${line.companyId}::${line.mrp}`;
-      const entry = tiers.get(key) ?? { companyId: line.companyId, mrp: line.mrp, pieces: 0, value: 0, collections: new Set<string>() };
-      entry.pieces += line.quantity;
-      entry.value += lineValue(line);
-      entry.collections.add(line.collectionId);
-      tiers.set(key, entry);
-    });
-
-  return Array.from(tiers.values())
-    .map((entry) => {
-      const fullBags = Math.floor(entry.pieces / BAG_CAPACITY);
-      const remainder = entry.pieces % BAG_CAPACITY;
-      return {
-        companyId: entry.companyId,
-        mrp: entry.mrp,
-        pieces: entry.pieces,
-        fullBags,
-        remainder,
-        totalBags: fullBags + (remainder > 0 ? 1 : 0),
-        value: entry.value,
-        sourceCollectionIds: Array.from(entry.collections),
-      };
-    })
-    .sort((a, b) => a.companyId.localeCompare(b.companyId) || a.mrp - b.mrp);
-}
-
 function codeFor(companies: Company[], companyId: string): string {
   return companies.find((c) => c.id === companyId)?.code ?? "GEN";
 }
 
-/**
- * Turns tiers into concrete SortedBag rows. Bag numbers lead with the company
- * code and carry the MRP tier (CAD-M10-2026-0008), so someone holding the
- * physical bag reads both off the label without a lookup.
- */
-export function packTiersIntoBags(
-  tiers: MrpTier[],
-  companies: Company[],
-  dateStr: string,
-  sequence: SequenceState
-): SortedBag[] {
-  const year = new Date(dateStr).getFullYear();
-  const bags: SortedBag[] = [];
-
-  tiers.forEach((tier) => {
-    const code = codeFor(companies, tier.companyId);
-    // Take every number this tier needs in one go, so a concurrent tier
-    // cannot interleave and produce a duplicate.
-    const bagsNeeded = Math.ceil(tier.pieces / BAG_CAPACITY);
-    const seqs = takeSequence(sequence, tier.companyId, "BAG", year, bagsNeeded);
-
-    let remaining = tier.pieces;
-    let index = 0;
-    while (remaining > 0) {
-      const pieceCount = Math.min(BAG_CAPACITY, remaining);
-      const seq = seqs[index];
-      index += 1;
-
-      bags.push({
-        id: `sb-${tier.companyId}-${year}-${seq}`,
-        bagNumber: `${code}-M${tier.mrp}-${year}-${String(seq).padStart(4, "0")}`,
-        companyId: tier.companyId,
-        mrp: tier.mrp,
-        pieceCount,
-        isFull: pieceCount === BAG_CAPACITY,
-        createdDate: dateStr,
-        status: "ready",
-        sourceCollectionIds: tier.sourceCollectionIds,
-      });
-      remaining -= pieceCount;
-    }
-  });
-
-  return bags;
-}
 
 /**
  * Issues `count` collection numbers for a company, e.g. CAD-COL-2026-0042,
@@ -216,44 +118,131 @@ export function peekCollectionNumbers(
 
 export { bagValue as sortedBagValue } from "./claim";
 
-/**
- * Records which pickups each new bag's pieces came from, and which items
- * they are (for the factory invoice). Bags of one
- * company + MRP are filled in the order they were created, from `lines`
- * oldest pickup first -- the same order the pieces were taken from the
- * pile. `collectedOn` maps a collection id to its pickup date.
- */
-export function fillBagContents(bags: SortedBag[], lines: CountLine[], collectedOn: Map<string, string>): SortedBag[] {
-  const queues = new Map<string, { collectionId: string; productId: string; left: number; rate: number }[]>();
-  lines
-    .slice()
-    .sort((a, b) => (collectedOn.get(a.collectionId) ?? "").localeCompare(collectedOn.get(b.collectionId) ?? "") || a.id.localeCompare(b.id))
-    .forEach((line) => {
-      const key = `${line.companyId}::${line.mrp}`;
-      const queue = queues.get(key) ?? [];
-      queue.push({ collectionId: line.collectionId, productId: line.productId, left: line.quantity, rate: line.rate ?? line.mrp });
-      queues.set(key, queue);
-    });
+/** The next bag number for a company and MRP, e.g. HLD-M10-2026-0008. */
+export function issueBagNumber(companies: Company[], companyId: string, mrp: number, dateStr: string, sequence: SequenceState): string {
+  const year = new Date(dateStr).getFullYear();
+  const [seq] = takeSequence(sequence, companyId, "BAG", year, 1);
+  return `${codeFor(companies, companyId)}-M${mrp}-${year}-${String(seq).padStart(4, "0")}`;
+}
 
-  return bags.map((bag) => {
-    const queue = queues.get(`${bag.companyId}::${bag.mrp}`) ?? [];
-    const byCollection = new Map<string, { pieces: number; value: number }>();
-    const byProduct = new Map<string, number>();
-    let need = bag.pieceCount;
-    while (need > 0 && queue.length > 0) {
-      const head = queue[0];
-      const take = Math.min(need, head.left);
-      const sofar = byCollection.get(head.collectionId) ?? { pieces: 0, value: 0 };
-      byCollection.set(head.collectionId, { pieces: sofar.pieces + take, value: sofar.value + take * head.rate });
-      byProduct.set(head.productId, (byProduct.get(head.productId) ?? 0) + take);
-      head.left -= take;
-      need -= take;
-      if (head.left === 0) queue.shift();
+/** Open bags of one company + MRP, oldest number first: the order they are filled. */
+function openFor(bags: SortedBag[], companyId: string, mrp: number): SortedBag[] {
+  return bags
+    .filter((b) => b.status === "open" && b.companyId === companyId && b.mrp === mrp && b.pieceCount < BAG_CAPACITY)
+    .sort((a, b) => a.bagNumber.localeCompare(b.bagNumber));
+}
+
+/**
+ * Puts freshly counted pieces straight into numbered bags, the moment the
+ * count is saved, so the counter can be told "these items go in this bag".
+ *
+ * Each company + MRP has an open bag being filled. Pieces top up the oldest
+ * open bag first; when a bag reaches BAG_CAPACITY it is full (ready for the
+ * factory) and the next pieces go into a newly numbered bag. A counted line
+ * that does not fit is split across bags, so every piece belongs to exactly
+ * one bag and each bag knows its items.
+ *
+ * Returns the placed lines (each with its bagId) and the whole bag list.
+ * Piece counts are updated here; items, parties and value are filled in by
+ * refreshBags, which works them out from the lines.
+ */
+export function putIntoBags(
+  lines: CountLine[],
+  bags: SortedBag[],
+  companies: Company[],
+  dateStr: string,
+  sequence: SequenceState,
+  openedFor: string
+): { lines: CountLine[]; bags: SortedBag[] } {
+  const next = bags.map((b) => ({ ...b }));
+  const placed: CountLine[] = [];
+
+  lines.forEach((line) => {
+    let left = line.quantity;
+    let part = 0;
+    while (left > 0) {
+      let bag = openFor(next, line.companyId, line.mrp)[0];
+      if (!bag) {
+        const bagNumber = issueBagNumber(companies, line.companyId, line.mrp, dateStr, sequence);
+        bag = {
+          id: `sb-${bagNumber}`,
+          bagNumber,
+          companyId: line.companyId,
+          mrp: line.mrp,
+          pieceCount: 0,
+          isFull: false,
+          createdDate: dateStr,
+          status: "open",
+          sourceCollectionIds: [],
+          openedFor,
+        };
+        next.push(bag);
+      }
+      const take = Math.min(left, BAG_CAPACITY - bag.pieceCount);
+      placed.push({ ...line, id: part === 0 && take === line.quantity ? line.id : `${line.id}-${part}`, quantity: take, bagId: bag.id, packed: true });
+      bag.pieceCount += take;
+      if (bag.pieceCount >= BAG_CAPACITY) {
+        bag.status = "ready";
+        bag.isFull = true;
+      }
+      left -= take;
+      part += 1;
     }
-    const contents: BagContent[] = Array.from(byCollection, ([collectionId, c]) => ({ collectionId, pieces: c.pieces, value: Math.round(c.value * 100) / 100 }));
-    if (!contents.length) return bag;
-    const claimValue = Math.round(contents.reduce((s, c) => s + (c.value ?? 0), 0) * 100) / 100;
+  });
+
+  return { lines: placed, bags: next };
+}
+
+/**
+ * Works out each bag's pieces, items, parties and claim value from the
+ * counted lines inside it. Run after any change to the lines.
+ *
+ * - A full open bag becomes ready; a full bag that lost pieces (its pickup
+ *   was re-counted or deleted) opens again to be topped up, unless it was
+ *   closed part-filled on purpose before a factory run.
+ * - Bags already sent to the factory are never touched.
+ * - With `dropEmpty`, open bags left with no pieces are removed. Their
+ *   numbers are not reused.
+ */
+export function refreshBags(bags: SortedBag[], lines: CountLine[], dropEmpty = true): SortedBag[] {
+  const byBag = new Map<string, CountLine[]>();
+  lines.forEach((l) => {
+    if (!l.bagId) return;
+    byBag.set(l.bagId, [...(byBag.get(l.bagId) ?? []), l]);
+  });
+
+  return bags.flatMap((bag) => {
+    if (bag.status === "dispatched") return [bag];
+    const inside = byBag.get(bag.id) ?? [];
+    const pieceCount = inside.reduce((s, l) => s + l.quantity, 0);
+    if (pieceCount === 0 && dropEmpty) return [];
+
+    const byProduct = new Map<string, number>();
+    const byCollection = new Map<string, { pieces: number; value: number }>();
+    inside.forEach((l) => {
+      byProduct.set(l.productId, (byProduct.get(l.productId) ?? 0) + l.quantity);
+      const c = byCollection.get(l.collectionId) ?? { pieces: 0, value: 0 };
+      byCollection.set(l.collectionId, { pieces: c.pieces + l.quantity, value: c.value + lineValue(l) });
+    });
     const items: BagItem[] = Array.from(byProduct, ([productId, pieces]) => ({ productId, pieces })).sort((a, b) => b.pieces - a.pieces);
-    return { ...bag, contents, items, claimValue, sourceCollectionIds: contents.map((c) => c.collectionId) };
+    const contents: BagContent[] = Array.from(byCollection, ([collectionId, c]) => ({ collectionId, pieces: c.pieces, value: Math.round(c.value * 100) / 100 }));
+    const isFull = pieceCount >= BAG_CAPACITY;
+
+    let status = bag.status;
+    if (status === "open" && isFull) status = "ready";
+    if (status === "ready" && !isFull && !bag.closedEarly) status = "open";
+
+    return [
+      {
+        ...bag,
+        status,
+        pieceCount,
+        isFull,
+        items,
+        contents,
+        sourceCollectionIds: contents.map((c) => c.collectionId),
+        claimValue: Math.round(contents.reduce((s, c) => s + (c.value ?? 0), 0) * 100) / 100,
+      },
+    ];
   });
 }

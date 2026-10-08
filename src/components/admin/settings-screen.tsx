@@ -34,11 +34,11 @@ export function SettingsScreen() {
   const pinReady = user && current === user.pin && next.length === 4 && next === again && next !== current;
 
   const rules: [string, string, string][] = [
-    [t("एक बैग में पीस", "Pieces per bag"), String(BAG_CAPACITY), t("ढेर इतने पीस पर बैग बनता है", "A pile becomes a bag at this many pieces")],
+    [t("एक बैग में पीस", "Pieces per bag"), String(BAG_CAPACITY), t("इतने पीस होते ही बैग भर जाता है और नया नंबर वाला बैग खुलता है", "At this many pieces a bag is full and a new numbered bag opens")],
     [t("गिनती की चेतावनी", "Count warning"), t(`${STALE_COUNT_DAYS} दिन`, `${STALE_COUNT_DAYS} days`), t("इतने दिन से बिना गिने बैग लाल दिखते हैं", "Bags uncounted this long turn red")],
     [t("तैयार बैग की चेतावनी", "Ready-bag warning"), t(`${STALE_READY_DAYS} दिन`, `${STALE_READY_DAYS} days`), t("गोदाम में इतने दिन पड़े बैग याद दिलाए जाते हैं", "Tied bags waiting this long are flagged")],
     [t("क्लेम की चेतावनी", "Claim warning"), t(`${STALE_CLAIM_DAYS} दिन`, `${STALE_CLAIM_DAYS} days`), t("इतने दिन से पैसा न आए तो फ़ोन करने को कहा जाता है", "Unpaid runs this old say call the factory")],
-    [t("लगभग भरा ढेर", "Almost-full pile"), t(`${NEAR_FULL} पीस कम`, `${NEAR_FULL} short`), t("इतने पीस कम हों तो ढेर पीला दिखता है", "Piles this close to a bag show yellow")],
+    [t("लगभग भरा बैग", "Almost-full bag"), t(`${NEAR_FULL} पीस कम`, `${NEAR_FULL} short`), t("भर रहे बैग में इतने पीस कम हों तो वह पीला दिखता है", "Bags being filled this close to full show yellow")],
   ];
 
   return (

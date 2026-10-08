@@ -27,12 +27,12 @@ let openedFromTiles = false;
 
 /**
  * Counting one bag. Tap the item, type how many on the big keypad, repeat;
- * "Done counting" saves and moves on to sorting the pieces into piles.
+ * "Done counting" saves, puts the pieces into numbered bags, and shows which bag gets what.
  * The keypad has its own address (?item=) so the phone's back button
  * returns to the item tiles.
  */
 export function CountScreen({ collectionId }: { collectionId: string }) {
-  const { collections, products, countLines } = useStore();
+  const { collections, products, countLines, sortedBags } = useStore();
   const drafts = useCountDraft();
   const params = useSearchParams();
   const bag = collections.find((c) => c.id === collectionId);
@@ -45,8 +45,8 @@ export function CountScreen({ collectionId }: { collectionId: string }) {
   const draft = drafts.get(collectionId) ?? saved;
 
   if (!bag) return <NotFound />;
-  // Pieces already tied into bags cannot be re-counted without losing them.
-  if (countLines.some((l) => l.collectionId === bag.id && l.packed)) return <NotFound locked bagId={bag.id} />;
+  // Goods already sent to the factory cannot be re-counted.
+  if (countLines.some((l) => l.collectionId === bag.id && sortedBags.find((b) => b.id === l.bagId)?.status === "dispatched")) return <NotFound locked bagId={bag.id} />;
   const itemId = params.get("item");
   const item = itemId ? products.find((p) => p.id === itemId) : undefined;
 
@@ -377,7 +377,7 @@ function NotFound({ locked, bagId }: { locked?: boolean; bagId?: string }) {
     <Screen>
       <ScreenBody className="items-center justify-center text-center">
         <p className="text-lg text-ink-dim">
-          {locked ? t("इस बैग का माल बैग में बँध चुका है, अब गिनती नहीं बदल सकते", "This bag's pieces are already tied into bags, so the count is final") : t("यह बैग नहीं मिला", "This bag was not found")}
+          {locked ? t("इस बैग का माल फैक्ट्री जा चुका है, अब गिनती नहीं बदल सकते", "This bag's goods have gone to the factory, so the count is final") : t("यह बैग नहीं मिला", "This bag was not found")}
         </p>
         {bagId && (
           <Link href={`/collections/${bagId}`} className="font-bold text-pickup">

@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { bagContents, pilesOf } from "@/lib/pipeline";
+import { bagContents } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
-import { CompanyAvatar, MrpChip, MrpCircle } from "@/components/ft/brand";
+import { CompanyAvatar, MrpChip } from "@/components/ft/brand";
 import { ArrowRightIcon, LayersIcon, PrinterIcon, SackIcon } from "@/components/ft/icons";
 import { PrintLabel, PrintSheet } from "@/components/ft/print-sheet";
 import { BigLink, Screen, ScreenBody, ScreenFooter, softButton } from "@/components/ft/screen";
@@ -35,7 +35,7 @@ export function BagTied() {
       <Screen>
         <ScreenBody className="items-center justify-center">
           <Link href="/piles" className="font-bold text-pile">
-            {t("ढेर देखें", "See piles")}
+            {t("गोदाम के बैग देखें", "See bags in the godown")}
           </Link>
         </ScreenBody>
       </Screen>
@@ -43,8 +43,6 @@ export function BagTied() {
   }
 
   const company = companies.find((c) => c.id === bags[0].companyId);
-  const piles = pilesOf(countLines, bags[0].companyId);
-  const mrps = Array.from(new Set(bags.map((b) => b.mrp)));
 
   return (
     <Screen>
@@ -97,21 +95,10 @@ export function BagTied() {
           </button>
           <Link href={`/piles?company=${bags[0].companyId}`} className={softButton}>
             <LayersIcon size={22} />
-            {t("सारे ढेर देखें", "See all piles")}
+            {t("गोदाम के बैग", "Bags in the godown")}
           </Link>
         </div>
 
-        {mrps.map((mrp) => {
-          const left = piles.find((p) => p.mrp === mrp)?.pieces ?? 0;
-          return (
-            <div key={mrp} className="flex items-center gap-2.5 rounded-[14px] bg-surface px-3.5 py-3 text-[15px] text-ink-dim">
-              <MrpCircle mrp={mrp} size={30} />
-              {left > 0
-                ? t(`₹${mrp} के ढेर में अभी ${num(left)} पीस बचे हैं`, `${num(left)} pieces still in the ₹${mrp} pile`)
-                : t(`₹${mrp} का ढेर खाली हो गया`, `The ₹${mrp} pile is empty now`)}
-            </div>
-          );
-        })}
       </ScreenBody>
 
       <ScreenFooter>

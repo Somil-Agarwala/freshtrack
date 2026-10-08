@@ -14,7 +14,7 @@ export const stepLinks: StepLink[] = [
   { href: "/", hi: "डैशबोर्ड", en: "Dashboard", tone: "neutral", match: ["/dashboard"] },
   { href: "/pickup", hi: "माल", en: "Pickup", tone: "pickup", match: ["/pickup", "/collections"] },
   { href: "/count", hi: "गिनती", en: "Count", tone: "count", match: ["/count"] },
-  { href: "/piles", hi: "ढेर", en: "Piles", tone: "pile", match: ["/piles", "/sorted-bags"] },
+  { href: "/piles", hi: "बैग", en: "Bags", tone: "pile", match: ["/piles", "/sorted-bags"] },
   { href: "/send", hi: "फैक्ट्री", en: "Factory", tone: "factory", match: ["/send"] },
   { href: "/money", hi: "हिसाब", en: "Money", tone: "money", match: ["/money", "/dispatches"] },
   { href: "/godown", hi: "गोदाम", en: "Godown", tone: "godown", match: ["/godown"] },

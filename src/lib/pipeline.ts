@@ -1,4 +1,4 @@
-import { BAG_CAPACITY, buildMrpTiers, type MrpTier } from "./bag-packing";
+import { BAG_CAPACITY } from "./bag-packing";
 import { bagValue, lineValue } from "./claim";
 import { addDays, daysBetween, daysSince } from "./format";
 import { today } from "./utils";
@@ -15,7 +15,7 @@ export const STALE_COUNT_DAYS = 7;
 export const STALE_CLAIM_DAYS = 45;
 /** Tied bags lying in the godown longer than this should go out. */
 export const STALE_READY_DAYS = 14;
-/** "Almost full" pile: this many pieces or fewer short of a bag. */
+/** "Almost full" open bag: this many pieces or fewer short of BAG_CAPACITY. */
 export const NEAR_FULL = 100;
 
 /** Uncounted bags, oldest first -- the order the count list works in. */
@@ -29,20 +29,19 @@ export function staleUncounted(collections: CollectionBag[]) {
   return collections.filter((c) => c.status === "uncounted" && daysSince(c.collectedDate) >= STALE_COUNT_DAYS);
 }
 
-/** Loose counted pieces of one company, one pile per MRP, ₹ low to high. */
-export function pilesOf(countLines: CountLine[], companyId: string): MrpTier[] {
-  return buildMrpTiers(countLines.filter((l) => !l.packed && l.companyId === companyId));
+/**
+ * Bags still being filled in the godown (under 700 pieces), ₹ low to high,
+ * oldest number first. Counted pieces go straight into these.
+ */
+export function openBags(sortedBags: SortedBag[], companyId: string | "all" = "all") {
+  return sortedBags
+    .filter((b) => b.status === "open" && (companyId === "all" || b.companyId === companyId))
+    .sort((a, b) => a.mrp - b.mrp || a.bagNumber.localeCompare(b.bagNumber));
 }
 
-export function allPiles(countLines: CountLine[]): MrpTier[] {
-  return buildMrpTiers(countLines.filter((l) => !l.packed));
-}
-
-/** Full bags waiting to be tied, across every pile in scope. */
-export function fullBagsWaiting(countLines: CountLine[], companyId: string | "all" = "all") {
-  return allPiles(countLines)
-    .filter((t) => companyId === "all" || t.companyId === companyId)
-    .reduce((sum, t) => sum + t.fullBags, 0);
+/** Bags holding goods that have gone to the factory: their counts are final. */
+export function sentBagIds(sortedBags: SortedBag[]) {
+  return new Set(sortedBags.filter((b) => b.status === "dispatched").map((b) => b.id));
 }
 
 export function readyBags(sortedBags: SortedBag[], companyId: string | "all" = "all") {

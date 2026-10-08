@@ -14,7 +14,7 @@ import type { UserRole } from "@/types";
  */
 export type Action =
   | "pickupCount" // log pickups, count bags, log godown damage
-  | "tieSend" // tie bags from piles, send runs to the factory
+  | "tieSend" // close part-filled bags, send runs to the factory
   | "addParty" // add a new party during a pickup
   | "addProduct" // add a new item while counting
   | "recordPayment" // enter what the factory paid

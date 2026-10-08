@@ -46,7 +46,7 @@ export const SOURCE_LABELS: Record<SourceType, string> = {
 export const COLLECTION_STATUS_LABELS: Record<CollectionStatus, string> = {
   uncounted: "Not counted",
   counted: "Counted",
-  packed: "Packed",
+  packed: "In bags",
 };
 
 export const COLLECTION_STATUS_TONE: Record<CollectionStatus, BadgeTone> = {
@@ -56,11 +56,13 @@ export const COLLECTION_STATUS_TONE: Record<CollectionStatus, BadgeTone> = {
 };
 
 export const SORTED_BAG_STATUS_LABELS: Record<SortedBagStatus, string> = {
+  open: "Being filled",
   ready: "Ready to send",
   dispatched: "Dispatched",
 };
 
 export const SORTED_BAG_STATUS_TONE: Record<SortedBagStatus, BadgeTone> = {
+  open: "blue",
   ready: "amber",
   dispatched: "emerald",
 };
@@ -106,11 +108,12 @@ export const OPEN_STATUSES: ResolutionStatus[] = ["pending_review", "under_inves
 
 export const COLLECTION_STATUS_HI: Record<CollectionStatus, string> = {
   uncounted: "गिनती बाकी",
-  counted: "गिना, ढेर में",
-  packed: "बैग में बँधा",
+  counted: "गिना",
+  packed: "बैग में डाला",
 };
 
 export const SORTED_BAG_STATUS_HI: Record<SortedBagStatus, string> = {
+  open: "भर रहा है",
   ready: "भेजने को तैयार",
   dispatched: "फैक्ट्री भेजा",
 };

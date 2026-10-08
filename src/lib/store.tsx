@@ -13,13 +13,11 @@ import {
   sortedBags as seedSortedBags,
 } from "./seed-data";
 import {
-  BAG_CAPACITY,
-  buildMrpTiers,
-  fillBagContents,
   issueCollectionNumbers,
   issueDispatchNumber,
   peekCollectionNumbers,
-  packTiersIntoBags,
+  putIntoBags,
+  refreshBags,
   seedSequence,
   type SequenceState,
 } from "./bag-packing";
@@ -64,16 +62,17 @@ interface StoreValue {
   addCollections: (input: CollectionInput, bagCount: number) => CollectionBag[];
   /** What the next `count` collection numbers would be, without consuming them. */
   previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => string[];
+  /** Deletes pickups and takes their pieces back out of their bags. Not for goods already sent. */
   deleteCollections: (ids: string[]) => void;
-  saveCount: (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => void;
-  packPendingForCompany: (companyId: string) => PackResult;
-  packPendingLines: () => PackResult;
   /**
-   * Ties only the FULL bags of a company's piles (optionally just some MRP
-   * tiers), leaving the part-filled remainder loose in the pile so the
-   * next counted bag can top it up. Returns the bags it created.
+   * Saves a count and puts its pieces straight into numbered bags: the
+   * open bag of each MRP is topped up and a new numbered bag opened when one
+   * fills. Re-counting replaces the old pieces. Refused (false) once any of
+   * the bag's goods have gone to the factory.
    */
-  tieFullBags: (companyId: string, mrps?: number[]) => SortedBag[];
+  saveCount: (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => boolean;
+  /** Closes a company's open bags part-filled before a factory run. */
+  closeOpenBags: (companyId: string) => SortedBag[];
   deleteSortedBags: (ids: string[]) => void;
   createDispatch: (bagIds: string[]) => Dispatch | null;
   recordSettlement: (dispatchId: string, receivedValue: number) => void;
@@ -89,12 +88,6 @@ interface CollectionInput {
   estimatedPieces?: number;
   notes?: string;
   photoUrl?: string;
-}
-
-interface PackResult {
-  bagCount: number;
-  pieceCount: number;
-  bags: SortedBag[];
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -199,21 +192,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [companies, sequence]
   );
 
-  const deleteCollections = useCallback((ids: string[]) => {
-    const idSet = new Set(ids);
-    setCollections((prev) => prev.filter((c) => !idSet.has(c.id)));
-    setCountLines((prev) => prev.filter((l) => !idSet.has(l.collectionId)));
-  }, []);
+  const deleteCollections = useCallback(
+    (ids: string[]) => {
+      // Goods already sent to the factory cannot be taken back out of a claim.
+      const sent = new Set(sortedBags.filter((b) => b.status === "dispatched").map((b) => b.id));
+      const allowed = new Set(ids.filter((id) => !countLines.some((l) => l.collectionId === id && l.bagId && sent.has(l.bagId))));
+      if (allowed.size === 0) return;
+      const rest = countLines.filter((l) => !allowed.has(l.collectionId));
+      setCollections((prev) => prev.filter((c) => !allowed.has(c.id)));
+      setCountLines(rest);
+      // Their pieces come out of the bags they were put in.
+      setSortedBags(refreshBags(sortedBags, rest));
+    },
+    [countLines, sortedBags]
+  );
 
   const saveCount = useCallback(
     (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => {
-      // The bag's company is copied onto every line, so packing can group
+      // The bag's company is copied onto every line, so bags can be filled
       // by company without joining back through the collection each time.
       const companyId = collections.find((c) => c.id === collectionId)?.companyId ?? "";
-      setCountLines((prev) => {
-        const withoutOld = prev.filter((l) => l.collectionId !== collectionId);
-        const created: CountLine[] = lines.map((line, index) => ({
-          id: `cl-${Date.now()}-${index}`,
+      const old = countLines.filter((l) => l.collectionId === collectionId);
+      const sent = new Set(sortedBags.filter((b) => b.status === "dispatched").map((b) => b.id));
+      // A count whose goods have gone to the factory is final.
+      if (old.some((l) => l.bagId && sent.has(l.bagId))) return false;
+
+      const stamp = Date.now();
+      const fresh: CountLine[] = lines
+        .filter((line) => line.quantity > 0)
+        .map((line, index) => ({
+          id: `cl-${stamp}-${index}`,
           collectionId,
           companyId,
           productId: line.productId,
@@ -223,122 +231,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           rate: products.find((p) => p.id === line.productId)?.claimRate,
           packed: false,
         }));
-        return [...withoutOld, ...created];
-      });
-      setCollections((prev) =>
-        prev.map((c) => (c.id === collectionId ? { ...c, status: "counted", countedDate: today(), countedBy: actorRef.current } : c))
-      );
-    },
-    [collections, products]
-  );
 
-  // Shared by "pack everything" and "pack one company". Passing a filter
-  // keeps the two paths identical apart from which lines they consider,
-  // so they cannot drift apart.
-  const packLines = useCallback(
-    (matches: (line: CountLine) => boolean) => {
-      const eligible = countLines.filter((l) => !l.packed && matches(l));
-      if (eligible.length === 0) return { bagCount: 0, pieceCount: 0, bags: [] };
-
-      const tiers = buildMrpTiers(eligible);
-      const collectedOn = new Map(collections.map((c) => [c.id, c.collectedDate]));
-      const created = fillBagContents(packTiersIntoBags(tiers, companies, today(), sequence), eligible, collectedOn).map((b) => ({ ...b, tiedBy: actorRef.current }));
-      const eligibleIds = new Set(eligible.map((l) => l.id));
-      const touchedCollectionIds = new Set(eligible.map((l) => l.collectionId));
-
-      setSortedBags((prev) => [...prev, ...created]);
-      setCountLines((prev) => prev.map((l) => (eligibleIds.has(l.id) ? { ...l, packed: true } : l)));
-      // A collection only becomes "packed" once none of its lines remain
-      // unpacked -- packing one company must not mark a bag finished.
-      setCollections((prev) =>
-        prev.map((c) => {
-          if (!touchedCollectionIds.has(c.id)) return c;
-          const stillPending = countLines.some((l) => l.collectionId === c.id && !l.packed && !eligibleIds.has(l.id));
-          return stillPending ? c : { ...c, status: "packed" };
-        })
+      // A re-count first takes the old pieces back out of their bags. Bags
+      // left empty are kept for a moment, so the new count refills the same
+      // numbers that may already be written on the bags.
+      const rest = countLines.filter((l) => l.collectionId !== collectionId);
+      const emptied = refreshBags(sortedBags, rest, false);
+      const { lines: placed, bags } = putIntoBags(fresh, emptied, companies, today(), sequence, collectionId);
+      const allLines = [...rest, ...placed];
+      const before = new Map(sortedBags.map((b) => [b.id, b.status]));
+      const refreshed = refreshBags(bags, allLines).map((b) =>
+        // Whoever counted the pieces that filled a bag is the one who closes it.
+        b.status === "ready" && before.get(b.id) !== "ready" ? { ...b, tiedBy: actorRef.current } : b
       );
 
-      return {
-        bagCount: created.length,
-        pieceCount: created.reduce((sum, b) => sum + b.pieceCount, 0),
-        bags: created,
-      };
-    },
-    [countLines, collections, companies, sequence]
-  );
-
-  const tieFullBags = useCallback(
-    (companyId: string, mrps?: number[]) => {
-      const inScope = (l: CountLine) => !l.packed && l.companyId === companyId && (!mrps || mrps.includes(l.mrp));
-      const tiers = buildMrpTiers(countLines.filter(inScope)).filter((tier) => tier.fullBags > 0);
-      if (tiers.length === 0) return [];
-
-      // Oldest pickups go into bags first, so pieces never sit in a pile
-      // for weeks while newer ones keep getting tied.
-      const collectedOn = new Map(collections.map((c) => [c.id, c.collectedDate]));
-      const stamp = Date.now();
-      let nextLines = countLines;
-      const created: SortedBag[] = [];
-      const packedParts: CountLine[] = [];
-
-      tiers.forEach((tier) => {
-        let toTake = tier.fullBags * BAG_CAPACITY;
-        const sources = new Set<string>();
-        const replaced = new Map<string, CountLine[]>();
-        nextLines
-          .filter((l) => inScope(l) && l.mrp === tier.mrp)
-          .sort((a, b) => (collectedOn.get(a.collectionId) ?? "").localeCompare(collectedOn.get(b.collectionId) ?? "") || a.id.localeCompare(b.id))
-          .forEach((line) => {
-            if (toTake <= 0) return;
-            sources.add(line.collectionId);
-            if (line.quantity <= toTake) {
-              const packed = { ...line, packed: true };
-              replaced.set(line.id, [packed]);
-              packedParts.push(packed);
-              toTake -= line.quantity;
-            } else {
-              // The bag fills part-way through this line: split it, so the
-              // packed part and the loose remainder stay separately counted.
-              const packed = { ...line, id: `${line.id}-t${stamp}`, quantity: toTake, packed: true };
-              replaced.set(line.id, [packed, { ...line, quantity: line.quantity - toTake }]);
-              packedParts.push(packed);
-              toTake = 0;
-            }
-          });
-        nextLines = nextLines.flatMap((l) => replaced.get(l.id) ?? [l]);
-
-        const pieces = tier.fullBags * BAG_CAPACITY;
-        created.push(
-          ...packTiersIntoBags(
-            [{ ...tier, pieces, remainder: 0, totalBags: tier.fullBags, value: 0, sourceCollectionIds: Array.from(sources) }],
-            companies,
-            today(),
-            sequence
-          )
-        );
-      });
-
-      const filled = fillBagContents(created, packedParts, collectedOn).map((b) => ({ ...b, tiedBy: actorRef.current }));
-      setCountLines(nextLines);
-      setSortedBags((prev) => [...prev, ...filled]);
+      setCountLines(allLines);
+      setSortedBags(refreshed);
       setCollections((prev) =>
-        prev.map((c) => {
-          if (c.status !== "counted") return c;
-          return nextLines.some((l) => l.collectionId === c.id && !l.packed) ? c : { ...c, status: "packed" };
-        })
+        prev.map((c) =>
+          c.id === collectionId ? { ...c, status: fresh.length ? "packed" : "counted", countedDate: today(), countedBy: actorRef.current } : c
+        )
       );
-      return filled;
+      return true;
     },
-    [countLines, collections, companies, sequence]
+    [collections, countLines, sortedBags, products, companies, sequence]
   );
 
-  const packPendingLines = useCallback(() => packLines(() => true), [packLines]);
-
-  const packPendingForCompany = useCallback(
-    (companyId: string) => packLines((line) => line.companyId === companyId),
-    [packLines]
+  /**
+   * Closes a company's open bags part-filled, so they can go on today's
+   * factory run. Returns the bags closed.
+   */
+  const closeOpenBags = useCallback(
+    (companyId: string) => {
+      const closing = sortedBags.filter((b) => b.status === "open" && b.companyId === companyId && b.pieceCount > 0);
+      if (closing.length === 0) return [];
+      const ids = new Set(closing.map((b) => b.id));
+      const closed = closing.map((b) => ({ ...b, status: "ready" as const, closedEarly: true, tiedBy: actorRef.current }));
+      setSortedBags((prev) => prev.map((b) => (ids.has(b.id) ? closed.find((c) => c.id === b.id)! : b)));
+      return closed;
+    },
+    [sortedBags]
   );
-
 
   const deleteSortedBags = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
@@ -445,9 +378,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       previewCollectionNumbers,
       deleteCollections,
       saveCount,
-      packPendingLines,
-      packPendingForCompany,
-      tieFullBags,
+      closeOpenBags,
       deleteSortedBags,
       createDispatch,
       recordSettlement,
@@ -477,9 +408,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       previewCollectionNumbers,
       deleteCollections,
       saveCount,
-      packPendingLines,
-      packPendingForCompany,
-      tieFullBags,
+      closeOpenBags,
       deleteSortedBags,
       createDispatch,
       recordSettlement,

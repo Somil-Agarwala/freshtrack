@@ -10,10 +10,10 @@ import {
   STALE_CLAIM_DAYS,
   STALE_COUNT_DAYS,
   STALE_READY_DAYS,
-  allPiles,
   averageDaysToPay,
   awaitingPayment,
   monthStart,
+  openBags,
   quarterStart,
   readyBags,
   shortfall,
@@ -58,9 +58,10 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
     const uncounted = cols.filter((c) => c.status === "uncounted");
     // An estimate, so it is rounded rather than shown to the rupee.
     const uncountedValue = Math.round(uncountedEstimate(uncounted, countLines, collections) / 100) * 100;
-    const piles = allPiles(lines);
-    const loosePieces = piles.reduce((s, p) => s + p.pieces, 0);
-    const looseValue = piles.reduce((s, p) => s + p.value, 0);
+    // Counted pieces sit in numbered bags still being filled until a bag reaches 700.
+    const filling = openBags(sortedBags).filter((b) => inScope(b.companyId));
+    const loosePieces = filling.reduce((s, b) => s + b.pieceCount, 0);
+    const looseValue = sumValue(filling);
     const ready = readyBags(sortedBags).filter((b) => inScope(b.companyId));
     const readyValue = sumValue(ready);
     const owed = awaitingPayment(disp);
@@ -70,7 +71,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
 
     const stages = [
       { key: "count", href: "/count", value: uncountedValue, hi: "गिनती बाकी", en: "Not counted", count: `${uncounted.length} ${t("बैग", "bags")}`, note: t("Not counted (estimate)", "अंदाज़ा"), estimate: true },
-      { key: "pile", href: "/piles", value: looseValue, hi: "ढेर में खुला", en: "Loose in piles", count: `${num(loosePieces)} ${t("पीस", "pcs")}`, note: t("Loose in piles", "ढेर में खुला"), estimate: false },
+      { key: "pile", href: "/piles", value: looseValue, hi: "भर रहे बैग में", en: "In bags being filled", count: `${filling.length} ${t("बैग", "bags")} · ${num(loosePieces)} ${t("पीस", "pcs")}`, note: t("In bags being filled", "भर रहे बैग में"), estimate: false },
       { key: "factory", href: "/send", value: readyValue, hi: "भेजने को तैयार", en: "Ready, not sent", count: `${ready.length} ${t("बैग", "bags")}`, note: t("Ready, not sent", "भेजने को तैयार"), estimate: false },
       { key: "pickup", href: "/money", value: owedValue, hi: "फैक्ट्री के पास", en: "With the factory", count: `${owed.length} ${t("गाड़ी", "runs")}`, note: t("Awaiting payment", "पैसा आना बाकी"), estimate: false },
     ] as const;
@@ -122,27 +123,20 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
         detail: t(`${lakhShort(sumValue(theirs))} गोदाम में पड़ा है`, `${lakhShort(sumValue(theirs))} sitting in the godown`),
       });
     });
-    piles.forEach((p) => {
-      const c = companies.find((x) => x.id === p.companyId);
-      if (p.fullBags > 0) {
+    filling
+      .filter((b) => BAG_CAPACITY - b.pieceCount <= NEAR_FULL)
+      .forEach((b) => {
+        const c = companies.find((x) => x.id === b.companyId);
         alerts.push({
           level: "yellow",
-          href: `/piles?company=${p.companyId}`,
-          title: t(`${c?.name} ₹${p.mrp} ढेर भरा — ${p.fullBags} बैग बाँधो`, `${c?.name} ₹${p.mrp} pile is full — tie ${p.fullBags} bag${p.fullBags > 1 ? "s" : ""}`),
-          detail: `${num(p.pieces)} ${t("पीस ढेर में", "pieces in the pile")}`,
-        });
-      } else if (BAG_CAPACITY - p.remainder <= NEAR_FULL) {
-        alerts.push({
-          level: "yellow",
-          href: `/piles?company=${p.companyId}`,
+          href: `/piles?company=${b.companyId}`,
           title: t(
-            `${c?.name} ₹${p.mrp} ढेर ${p.remainder}/${BAG_CAPACITY} — ${BAG_CAPACITY - p.remainder} पीस से बैग पूरा`,
-            `${c?.name} ₹${p.mrp} pile ${p.remainder}/${BAG_CAPACITY} — ${BAG_CAPACITY - p.remainder} pieces to a full bag`
+            `${b.bagNumber} में ${b.pieceCount}/${BAG_CAPACITY} — ${BAG_CAPACITY - b.pieceCount} पीस से बैग भरेगा`,
+            `${b.bagNumber} has ${b.pieceCount}/${BAG_CAPACITY} — ${BAG_CAPACITY - b.pieceCount} pieces to a full bag`
           ),
           detail: t(`पहले ${c?.name} का एक और बैग गिनें`, `Count one more ${c?.name} bag first`),
         });
-      }
-    });
+      });
     disp
       .filter((d) => d.settledDate && daysSince(d.settledDate) <= 30 && shortfall(d) > 0)
       .forEach((d) => {
@@ -176,7 +170,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
         return {
           company: c,
           uncounted: collections.filter((x) => x.companyId === c.id && x.status === "uncounted").length,
-          pilePieces: allPiles(countLines.filter((l) => l.companyId === c.id)).reduce((s, p) => s + p.pieces, 0),
+          pilePieces: openBags(sortedBags, c.id).reduce((s, b) => s + b.pieceCount, 0),
           ready: ready.length,
           readyValue: sumValue(ready),
           owedValue: owedRuns.reduce((s, d) => s + d.claimedValue, 0),

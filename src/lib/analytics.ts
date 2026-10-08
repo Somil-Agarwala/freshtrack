@@ -1,5 +1,5 @@
 import { bagValue, lineValue } from "./claim";
-import { BAG_CAPACITY, buildMrpTiers } from "./bag-packing";
+import { BAG_CAPACITY } from "./bag-packing";
 import { formatCurrency, formatNumber } from "./utils";
 import { REASON_LABELS } from "./constants";
 import type {
@@ -75,7 +75,7 @@ export interface PipelineStage {
 
 export function pipeline(d: Dataset): PipelineStage[] {
   const uncounted = d.collections.filter((c) => c.status === "uncounted");
-  const unpacked = d.countLines.filter((l) => !l.packed);
+  const filling = d.sortedBags.filter((b) => b.status === "open");
   const ready = d.sortedBags.filter((b) => b.status === "ready");
   const openDispatches = d.dispatches.filter((x) => x.status === "sent" || x.status === "under_review");
 
@@ -89,11 +89,11 @@ export function pipeline(d: Dataset): PipelineStage[] {
       href: "/collections",
     },
     {
-      stage: "Counted, not packed",
-      bags: new Set(unpacked.map((l) => l.collectionId)).size,
-      pieces: unpacked.reduce((s, l) => s + l.quantity, 0),
-      value: unpacked.reduce((s, l) => s + lineValue(l), 0),
-      href: "/sorted-bags",
+      stage: "In bags being filled",
+      bags: filling.length,
+      pieces: filling.reduce((s, b) => s + b.pieceCount, 0),
+      value: filling.reduce((s, b) => s + bagValue(b), 0),
+      href: "/piles",
     },
     {
       stage: "Ready to send",
@@ -310,7 +310,8 @@ export function mrpBreakdown(d: Dataset) {
 /* ---------------------------------------------------------------- */
 
 export function bagFill(d: Dataset) {
-  const bags = d.sortedBags;
+  // Bags still being filled are part-full by nature, so they are left out.
+  const bags = d.sortedBags.filter((b) => b.status !== "open");
   const full = bags.filter((b) => b.isFull).length;
   const partial = bags.length - full;
   const pieces = bags.reduce((s, b) => s + b.pieceCount, 0);
@@ -502,15 +503,14 @@ export function insights(d: Dataset): Insight[] {
     });
   }
 
-  const tiers = buildMrpTiers(d.countLines);
-  const pendingPieces = tiers.reduce((s, t) => s + t.pieces, 0);
-  if (pendingPieces > 0) {
-    const bags = tiers.reduce((s, t) => s + t.totalBags, 0);
+  const filling = d.sortedBags.filter((b) => b.status === "open");
+  const fillingPieces = filling.reduce((s, b) => s + b.pieceCount, 0);
+  if (fillingPieces > 0) {
     out.push({
       level: "info",
-      title: `${formatNumber(pendingPieces)} counted pieces ready to pack`,
-      detail: `Packing now makes ${bags} bag${bags === 1 ? "" : "s"} worth ${formatCurrency(tiers.reduce((s, t) => s + t.value, 0))}.`,
-      href: "/sorted-bags",
+      title: `${formatNumber(fillingPieces)} counted pieces in ${filling.length} bag${filling.length === 1 ? "" : "s"} still being filled`,
+      detail: `Worth ${formatCurrency(filling.reduce((s, b) => s + bagValue(b), 0))}; they go to the factory once full or closed before a run.`,
+      href: "/piles",
     });
   }
 

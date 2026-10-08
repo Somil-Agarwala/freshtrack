@@ -15,7 +15,7 @@ import { PrintLabel, PrintSheet } from "@/components/ft/print-sheet";
 import { BigButton, BigLink, CompanyTabs, ListHeader, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
 import { Dialog } from "@/components/ui/dialog";
 
-type Filter = "ready" | "dispatched" | "all";
+type Filter = "open" | "ready" | "dispatched" | "all";
 
 /** Every tied 700-piece bag: still in the godown, or gone to the factory. */
 export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
@@ -45,11 +45,12 @@ export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
     [sortedBags, filter, companyId, q]
   );
   const readyCount = sortedBags.filter((b) => b.status === "ready").length;
+  const openCount = sortedBags.filter((b) => b.status === "open").length;
   const bag = sortedBags.find((b) => b.id === open);
 
   return (
     <Screen width="wide">
-      <ListHeader tone="pile" icon={<LayersIcon size={26} />} title={t("बँधे बैग", "Tied bags")} subtitle={t("700 पीस के बैग, गोदाम में या फैक्ट्री गए", "700-piece bags, in the godown or sent")}>
+      <ListHeader tone="pile" icon={<LayersIcon size={26} />} title={t("नंबर वाले बैग", "Numbered bags")} subtitle={t("700 पीस के बैग: भर रहे, बँधे या फैक्ट्री गए", "700-piece bags: filling, tied or sent")}>
         <CompanyTabs companies={companies.filter((c) => sortedBags.some((b) => b.companyId === c.id))} value={companyId} onChange={setCompanyId} tone="pile" all={t("सब कंपनी", "All")} />
       </ListHeader>
       <ScreenBody className="gap-3">
@@ -63,12 +64,13 @@ export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "ready", label: `${t("गोदाम में", "In godown")} ${readyCount}` },
+            { value: "open", label: `${t("भर रहे", "Filling")} ${openCount}` },
+            { value: "ready", label: `${t("बँधे, तैयार", "Tied, ready")} ${readyCount}` },
             { value: "dispatched", label: t("फैक्ट्री भेजे", "Sent") },
             { value: "all", label: `${t("सब", "All")} ${sortedBags.length}` },
           ]}
         />
-        {list.length === 0 && <EmptyCard title={t("कोई बैग नहीं", "No bags")} detail={t("ढेर से बैग बाँधने के बाद यहाँ दिखेंगे", "Bags appear here once tied from the piles")} />}
+        {list.length === 0 && <EmptyCard title={t("कोई बैग नहीं", "No bags")} detail={t("पिकअप बैग गिनने पर यहाँ नंबर वाले बैग बनेंगे", "Numbered bags appear here as pickups are counted")} />}
         <div className="grid gap-2 lg:grid-cols-2 [&>*]:min-w-0">
           {list.map((b) => {
             const names = partyNames(b);
@@ -83,7 +85,11 @@ export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
                     {!b.isFull && ` (${t("आधा", "part")})`} · {names.length ? `${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ""}` : "—"}
                   </span>
                 </span>
-                {b.status === "ready" ? (
+                {b.status === "open" ? (
+                  <Pill tone="pile">
+                    {num(b.pieceCount)}/700
+                  </Pill>
+                ) : b.status === "ready" ? (
                   <Pill tone={daysSince(b.createdDate) >= 14 ? "danger" : "factory"}>{t(`${daysSince(b.createdDate)} दिन से`, `${daysSince(b.createdDate)} days`)}</Pill>
                 ) : (
                   <Pill tone="money" className="max-w-[40%] truncate">
@@ -112,7 +118,7 @@ export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
 
 function BagSheet({ bag, partyNames, onClose }: { bag: SortedBag; partyNames: string[]; onClose: () => void }) {
   const { t, lang } = useLang();
-  const { companies, collections, distributors, countLines, dispatches } = useStore();
+  const { companies, collections, distributors, countLines, dispatches, products } = useStore();
   const company = companies.find((c) => c.id === bag.companyId);
   const run = dispatches.find((d) => d.id === bag.dispatchId);
   const parts = bagContents(bag, countLines);
@@ -122,7 +128,7 @@ function BagSheet({ bag, partyNames, onClose }: { bag: SortedBag; partyNames: st
       open
       onClose={onClose}
       title={bag.bagNumber}
-      description={`${company?.name} · MRP ₹${bag.mrp} · ${num(bag.pieceCount)} ${t("पीस", "pcs")} · ${t("बँधा", "tied")} ${fullDate(bag.createdDate, lang)}`}
+      description={`${company?.name} · MRP ₹${bag.mrp} · ${num(bag.pieceCount)} ${t("पीस", "pcs")} · ${t("खुला", "opened")} ${fullDate(bag.createdDate, lang)}`}
       footer={
         <BigButton tone="pile" onClick={() => window.print()}>
           <PrinterIcon />
@@ -140,11 +146,27 @@ function BagSheet({ bag, partyNames, onClose }: { bag: SortedBag; partyNames: st
                 {run.dispatchNumber}
               </Link>
             </>
+          ) : bag.status === "open" ? (
+            t(`अभी भर रहा है — ${num(700 - bag.pieceCount)} पीस और आएँगे`, `Still being filled — ${num(700 - bag.pieceCount)} more pieces to go`)
           ) : (
             t(`${daysSince(bag.createdDate)} दिन से गोदाम में, भेजने को तैयार`, `In the godown for ${daysSince(bag.createdDate)} days, ready to send`)
           )}
         </span>
       </div>
+
+      {(bag.items?.length ?? 0) > 0 && (
+        <>
+          <p className="mb-2 mt-4 text-[15px] font-bold">{t("बैग में क्या है", "What is in the bag")}</p>
+          <ul className="flex flex-col divide-y divide-line rounded-2xl bg-elevated px-3 py-1">
+            {bag.items!.map((i) => (
+              <li key={i.productId} className="flex items-center justify-between gap-3 py-2 text-base">
+                <span className="min-w-0 truncate">{products.find((p) => p.id === i.productId)?.name ?? "—"}</span>
+                <b>{num(i.pieces)}</b>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <p className="mb-2 mt-4 text-[15px] font-bold">
         {t("किसका माल अंदर है", "Whose goods are inside")} <span className="font-medium text-ink-faint">· {partyNames.length}</span>

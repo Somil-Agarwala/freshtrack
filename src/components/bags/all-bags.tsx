@@ -60,8 +60,8 @@ export function AllBags({ initialSearch = "" }: { initialSearch?: string }) {
           options={[
             { value: "all", label: `${t("सब", "All")} ${collections.length}` },
             { value: "uncounted", label: `${t("गिनती बाकी", "To count")} ${count("uncounted")}` },
-            { value: "counted", label: `${t("ढेर में", "In piles")} ${count("counted")}` },
-            { value: "packed", label: `${t("बँधे", "Tied")} ${count("packed")}` },
+            { value: "counted", label: `${t("गिना", "Counted")} ${count("counted")}` },
+            { value: "packed", label: `${t("बैग में डाला", "In bags")} ${count("packed")}` },
           ]}
         />
 

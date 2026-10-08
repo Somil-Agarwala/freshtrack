@@ -441,7 +441,7 @@ function DesktopDashboard({ data }: { data: Data }) {
               <tr className="text-left text-sm text-ink-dim">
                 <th className="px-2 py-2.5 font-semibold">{t("कंपनी", "Company")}</th>
                 <th className="px-2 py-2.5 font-semibold text-count-soft">{t("गिनती बाकी", "To count")}</th>
-                <th className="px-2 py-2.5 font-semibold text-pile-soft">{t("ढेर में पीस", "In piles")}</th>
+                <th className="px-2 py-2.5 font-semibold text-pile-soft">{t("भर रहे बैग में", "In bags filling")}</th>
                 <th className="px-2 py-2.5 font-semibold text-factory-soft">{t("तैयार बैग", "Ready bags")}</th>
                 <th className="px-2 py-2.5 font-semibold text-pickup-soft">{t("फैक्ट्री के पास", "With factory")}</th>
                 <th className="px-2 py-2.5 font-semibold text-money-soft">{period === "month" ? t("इस महीने मिला", "Received this month") : t("90 दिन में मिला", "Received, 90 days")}</th>

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { longDate, lakh, weekdayEn } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
-import { awaitingPayment, fullBagsWaiting, readyBags, staleUncounted, sumValue, STALE_COUNT_DAYS } from "@/lib/pipeline";
+import { awaitingPayment, openBags, readyBags, staleUncounted, sumValue, STALE_COUNT_DAYS } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import { today } from "@/lib/utils";
 import { OPEN_STATUSES } from "@/lib/constants";
@@ -17,12 +17,12 @@ export function HomeScreen() {
   const { t, lang } = useLang();
   const { user, can } = useSession();
   const userName = user?.name ?? "";
-  const { collections, countLines, sortedBags, dispatches, records } = useStore();
+  const { collections, sortedBags, dispatches, records } = useStore();
   const toReview = records.filter((r) => OPEN_STATUSES.includes(r.status)).length;
 
   const uncounted = collections.filter((c) => c.status === "uncounted").length;
   const stale = staleUncounted(collections).length;
-  const toTie = fullBagsWaiting(countLines);
+  const filling = openBags(sortedBags);
   const ready = readyBags(sortedBags);
   const owed = awaitingPayment(dispatches);
   const owedValue = owed.reduce((s, d) => s + d.claimedValue, 0);
@@ -113,9 +113,13 @@ export function HomeScreen() {
           step={3}
           tone="pile"
           icon={<LayersIcon size={28} />}
-          title={toTie > 0 ? t("ढेर भर गए, बैग बाँधो", "Piles full — tie bags") : t("ढेर", "Piles")}
-          detail={toTie > 0 ? t("Piles full — tie up bags", "ढेर भर गए, बैग बाँधो") : t("कोई ढेर भरा नहीं", "No pile is full yet")}
-          value={String(toTie)}
+          title={t("बैग भर रहे हैं", "Bags being filled")}
+          detail={
+            filling.length > 0
+              ? `${t("Bags being filled", "बैग भर रहे हैं")} · ${filling.reduce((s, b) => s + b.pieceCount, 0).toLocaleString("en-IN")} ${t("पीस", "pcs")}`
+              : t("कोई खुला बैग नहीं", "No open bag")
+          }
+          value={String(filling.length)}
           unit={t("बैग", "bags")}
         />
         <StageCard

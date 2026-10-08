@@ -125,11 +125,22 @@ export interface CountLine {
   quantity: number;
   /** Claim rate per piece, snapshotted at count time like the MRP. Unset = MRP. */
   rate?: number;
-  /** Set once these pieces have been packed into a SortedBag. */
+  /** Set once these pieces have been put into a numbered bag. */
   packed: boolean;
+  /**
+   * The numbered bag these pieces were put into, decided the moment the
+   * count is saved. A line that fills one bag and spills into the next is
+   * split into one line per bag.
+   */
+  bagId?: string;
 }
 
-export type SortedBagStatus = "ready" | "dispatched";
+/**
+ * open: being filled in the godown, under BAG_CAPACITY pieces;
+ * ready: full (or closed part-filled before a run), waiting for the factory;
+ * dispatched: gone to the factory.
+ */
+export type SortedBagStatus = "open" | "ready" | "dispatched";
 
 /**
  * A packed bag destined for the factory. Holds exactly one MRP tier and
@@ -166,6 +177,10 @@ export interface SortedBag {
   tiedBy?: string;
   /** Claim value of the bag at the pieces' claim rates. Unset = pieces × MRP. */
   claimValue?: number;
+  /** The pickup whose count opened this bag (so its screen can say "new bag"). */
+  openedFor?: string;
+  /** Closed part-filled on purpose before a factory run; stays closed. */
+  closedEarly?: boolean;
 }
 
 /** Pieces of one item inside a tied bag. */

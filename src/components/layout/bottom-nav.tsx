@@ -12,7 +12,7 @@ type Item = { href: string; hi: string; en: string; icon: ReactNode; active: str
 const ITEMS: Item[] = [
   { href: "/", hi: "घर", en: "Home", icon: <HomeIcon size={22} />, active: "bg-raised text-ink", match: (p) => p === "/" || p === "/dashboard" },
   { href: "/count", hi: "गिनती", en: "Count", icon: <ClipboardIcon size={22} />, active: "bg-count-tint text-count", match: (p) => p.startsWith("/count") },
-  { href: "/piles", hi: "ढेर", en: "Piles", icon: <LayersIcon size={22} />, active: "bg-pile-tint text-pile", match: (p) => p.startsWith("/piles") },
+  { href: "/piles", hi: "बैग", en: "Bags", icon: <LayersIcon size={22} />, active: "bg-pile-tint text-pile", match: (p) => p.startsWith("/piles") },
   { href: "/send", hi: "भेजो", en: "Send", icon: <SendIcon size={22} />, active: "bg-factory-tint text-factory", match: (p) => p.startsWith("/send") },
 ];
 const TEXT: Record<string, string> = { "/": "text-ink", "/count": "text-count", "/piles": "text-pile", "/send": "text-factory" };

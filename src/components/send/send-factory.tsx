@@ -72,7 +72,7 @@ export function SendFactory() {
         {!company || bags.length === 0 ? (
           <div className="rounded-[20px] border border-line bg-surface px-4 py-10 text-center">
             <p className="font-display text-2xl font-extrabold">{t("भेजने को कोई बैग नहीं", "No bags to send")}</p>
-            <p className="mt-1 text-ink-dim">{t("ढेर से बैग बाँधने के बाद यहाँ दिखेंगे", "Bags show up here once tied from the piles")}</p>
+            <p className="mt-1 text-ink-dim">{t("बैग 700 पीस से भरते ही या आधे भरे बंद करने पर यहाँ दिखेंगे", "Bags show up here once full at 700, or closed part-filled")}</p>
           </div>
         ) : (
           <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr] lg:items-start">

@@ -34,7 +34,7 @@ export function ProductsScreen({ initialSearch = "" }: { initialSearch?: string 
         tone="neutral"
         icon={<BoxIcon size={26} />}
         title={t("सामान", "Products")}
-        subtitle={t("MRP से ढेर तय होता है, लागत से नुकसान", "MRP decides the pile, cost values a loss")}
+        subtitle={t("MRP से बैग तय होता है, लागत से नुकसान", "MRP decides the bag, cost values a loss")}
       >
         <CompanyTabs companies={companies} value={companyId} onChange={setCompanyId} tone="count" all={t("सब कंपनी", "All")} />
       </ListHeader>
