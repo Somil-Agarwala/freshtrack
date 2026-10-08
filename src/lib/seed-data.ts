@@ -1,4 +1,4 @@
-import type { CollectionBag, Company, CountLine, DamageRecord, Dispatch, Distributor, PilePlace, Product, SortedBag, UserAccount } from "@/types";
+import type { CollectionBag, Company, CountLine, DamageRecord, Dispatch, Distributor, Product, SortedBag, UserAccount } from "@/types";
 import { HALDIRAM_DEALERS, HALDIRAM_PRODUCTS } from "./data/haldiram";
 import { STOCK_PRODUCTS } from "./data/stock-products";
 
@@ -60,8 +60,6 @@ export const distributors: Distributor[] = HALDIRAM_DEALERS.map(([id, name, regi
 export const collectionBags: CollectionBag[] = [];
 export const countLines: CountLine[] = [];
 export const sortedBags: SortedBag[] = [];
-/** Where each pile lies: written in the godown the first time a pile appears. */
-export const pilePlaces: PilePlace[] = [];
 export const dispatches: Dispatch[] = [];
 export const records: DamageRecord[] = [];
 

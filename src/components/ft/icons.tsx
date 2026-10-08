@@ -95,12 +95,6 @@ export const ChevronDownIcon = (p: IconProps) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
-export const PinIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" />
-    <circle cx="12" cy="9.5" r="2.5" />
-  </Svg>
-);
 export const CheckIcon = (p: IconProps) => (
   <Svg strokeWidth={2.8} {...p}>
     <path d="M20 6 9 17l-5-5" />

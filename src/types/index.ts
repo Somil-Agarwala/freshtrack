@@ -181,21 +181,6 @@ export interface BagContent {
   value?: number;
 }
 
-/**
- * Where one pile lies in the godown. A pile is one company's pieces of one
- * MRP, so its placard code (HLD-10) comes from those two and never changes;
- * this only records where that placard stands, in the words staff use.
- */
-export interface PilePlace {
-  companyId: string;
-  mrp: number;
-  /** e.g. "पीछे वाली दीवार, रैक 2". */
-  where: string;
-  /** User who wrote it down, and when. */
-  setBy?: string;
-  setOn?: string;
-}
-
 /** One party's part of a dispatch: its pieces and what they claim. */
 export interface PartyShare {
   distributorId: string;

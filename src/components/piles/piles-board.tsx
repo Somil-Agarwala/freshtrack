@@ -6,16 +6,14 @@ import { useMemo, useState } from "react";
 import { daysSince, fullDate, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { BAG_CAPACITY, NEAR_FULL, allPiles, bagContents, readyBags } from "@/lib/pipeline";
-import { companyMrps, findPlace, pileCode } from "@/lib/places";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MrpCircle } from "@/components/ft/brand";
-import { ChevronRightIcon, LayersIcon, PrinterIcon, SackIcon } from "@/components/ft/icons";
+import { ChevronRightIcon, LayersIcon, SackIcon } from "@/components/ft/icons";
 import { Pill } from "@/components/ft/kit";
-import { BigButton, CompanyTabs, ListHeader, PileBar, Screen, ScreenBody, ScreenFooter, softButton } from "@/components/ft/screen";
+import { BigButton, CompanyTabs, ListHeader, PileBar, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
 import { Dialog } from "@/components/ui/dialog";
-import { PileTag, PlaceEditor, PlaceLine, usePlacards } from "./pile-place";
 
 /** Counted pieces lying loose, one pile per company and MRP. */
 export function PilesBoard() {
@@ -23,8 +21,7 @@ export function PilesBoard() {
   const params = useSearchParams();
   const { can } = useSession();
   const { t, lang } = useLang();
-  const { companies, countLines, sortedBags, collections, distributors, products, pilePlaces, tieFullBags, packPendingForCompany } = useStore();
-  const placards = usePlacards();
+  const { companies, countLines, sortedBags, collections, distributors, tieFullBags, packPendingForCompany } = useStore();
   const [confirmLeftovers, setConfirmLeftovers] = useState(false);
   const [openPile, setOpenPile] = useState<number | null>(null);
 
@@ -52,8 +49,6 @@ export function PilesBoard() {
   const partyOf = (collectionId: string) => distributors.find((d) => d.id === collections.find((c) => c.id === collectionId)?.distributorId)?.name ?? "—";
   const looseBagCount = (mrp: number) => new Set(countLines.filter((l) => !l.packed && l.companyId === companyId && l.mrp === mrp).map((l) => l.collectionId)).size;
   const loose = piles.reduce((s, p) => s + p.remainder, 0);
-  // One placard per MRP the company deals in, plus any pile already lying here.
-  const placardMrps = company ? companyMrps(products, company.id, piles.map((p) => p.mrp)) : [];
 
   const go = (ids: string[]) => ids.length && router.push(`/piles/tied?ids=${ids.join(",")}`);
 
@@ -125,10 +120,6 @@ export function PilesBoard() {
                     </span>
                   )}
                 </div>
-                <div className="mt-2.5 flex items-center gap-2">
-                  <PileTag company={company} mrp={pile.mrp} size="sm" />
-                  <PlaceLine where={findPlace(pilePlaces, companyId, pile.mrp)?.where} className="min-w-0 flex-1 text-sm" />
-                </div>
                 <div className="mt-3 flex items-center gap-2">
                   {Array.from({ length: Math.min(pile.fullBags, 6) }, (_, i) => (
                     <span key={i} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-pile text-pile-ink">
@@ -154,17 +145,6 @@ export function PilesBoard() {
             );
           })}
         </div>
-
-        {company && can("tieSend") && (
-          <button
-            type="button"
-            className={softButton}
-            onClick={() => placards.print(placardMrps.map((mrp) => ({ companyId: company.id, mrp })))}
-          >
-            <PrinterIcon size={22} />
-            {t(`${company.name} की सारी पर्चियाँ छापें (${placardMrps.length})`, `Print all ${company.name} placards (${placardMrps.length})`)}
-          </button>
-        )}
 
         {tiedByMrp.length > 0 && (
           <section className="mt-2 flex flex-col gap-2">
@@ -231,10 +211,7 @@ export function PilesBoard() {
         </ScreenFooter>
       )}
 
-      {openPile !== null && company && (
-        <PileSheet companyId={company.id} mrp={openPile} onClose={() => setOpenPile(null)} onPrint={() => placards.print([{ companyId: company.id, mrp: openPile }])} />
-      )}
-      {placards.sheet}
+      {openPile !== null && company && <PileSheet companyId={company.id} mrp={openPile} onClose={() => setOpenPile(null)} />}
 
       <Dialog
         open={confirmLeftovers}
@@ -266,13 +243,10 @@ export function PilesBoard() {
 }
 
 /** One pile in full: every pickup bag whose pieces lie in it, item by item, and the bags already tied from it. */
-function PileSheet({ companyId, mrp, onClose, onPrint }: { companyId: string; mrp: number; onClose: () => void; onPrint: () => void }) {
+function PileSheet({ companyId, mrp, onClose }: { companyId: string; mrp: number; onClose: () => void }) {
   const { t, lang } = useLang();
-  const { can } = useSession();
-  const { companies, countLines, collections, distributors, products, sortedBags, pilePlaces } = useStore();
-  const [editing, setEditing] = useState(false);
+  const { companies, countLines, collections, distributors, products, sortedBags } = useStore();
   const company = companies.find((c) => c.id === companyId);
-  const where = findPlace(pilePlaces, companyId, mrp)?.where;
   const loose = countLines.filter((l) => !l.packed && l.companyId === companyId && l.mrp === mrp);
   const total = loose.reduce((s, l) => s + l.quantity, 0);
 
@@ -294,32 +268,12 @@ function PileSheet({ companyId, mrp, onClose, onPrint }: { companyId: string; mr
     <Dialog
       open
       onClose={onClose}
-      title={t(`${pileCode(company, mrp)} · ${company?.name} ₹${mrp} का ढेर`, `${pileCode(company, mrp)} · ${company?.name} ₹${mrp} pile`)}
+      title={t(`${company?.name} · ₹${mrp} का ढेर`, `${company?.name} · ₹${mrp} pile`)}
       description={t(
         `${num(total)} पीस खुले · ${pickups.length} पिकअप बैग से · ${tied.length} बैग बँधे`,
         `${num(total)} loose pieces · from ${pickups.length} pickup bags · ${tied.length} tied`
       )}
     >
-      <div className="mb-4 flex flex-col gap-2.5 rounded-2xl bg-elevated p-3">
-        {editing ? (
-          <PlaceEditor companyId={companyId} mrp={mrp} onDone={() => setEditing(false)} onPrint={onPrint} />
-        ) : (
-          <>
-            <div className="flex items-center gap-2.5">
-              <PileTag company={company} mrp={mrp} size="lg" />
-              <span className="text-sm text-ink-dim">{t("इस ढेर की पर्ची", "This pile's placard")}</span>
-            </div>
-            <PlaceLine where={where} onEdit={can("tieSend") ? () => setEditing(true) : undefined} />
-            {can("tieSend") && (
-              <button type="button" onClick={onPrint} className="flex items-center gap-1.5 self-start text-sm font-bold text-pile-soft">
-                <PrinterIcon size={16} />
-                {t("पर्ची छापें", "Print placard")}
-              </button>
-            )}
-          </>
-        )}
-      </div>
-
       <p className="mb-2 text-[15px] font-bold">
         {t("ढेर में किसका माल है", "What is in the pile")} <span className="font-medium text-ink-faint">· {t("पुराना पहले", "oldest first")}</span>
       </p>

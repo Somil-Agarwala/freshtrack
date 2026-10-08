@@ -38,7 +38,6 @@ export function SettingsScreen() {
     [t("गिनती की चेतावनी", "Count warning"), t(`${STALE_COUNT_DAYS} दिन`, `${STALE_COUNT_DAYS} days`), t("इतने दिन से बिना गिने बैग लाल दिखते हैं", "Bags uncounted this long turn red")],
     [t("तैयार बैग की चेतावनी", "Ready-bag warning"), t(`${STALE_READY_DAYS} दिन`, `${STALE_READY_DAYS} days`), t("गोदाम में इतने दिन पड़े बैग याद दिलाए जाते हैं", "Tied bags waiting this long are flagged")],
     [t("क्लेम की चेतावनी", "Claim warning"), t(`${STALE_CLAIM_DAYS} दिन`, `${STALE_CLAIM_DAYS} days`), t("इतने दिन से पैसा न आए तो फ़ोन करने को कहा जाता है", "Unpaid runs this old say call the factory")],
-    [t("ढेर की पर्ची", "Pile placard"), "HLD-10", t("कंपनी कोड और MRP — हर ढेर पर उसकी पर्ची, गिनती के बाद ऐप यही पर्ची बताता है", "Company code and MRP — every pile carries its placard, and after counting the app names the placard to look for")],
     [t("लगभग भरा ढेर", "Almost-full pile"), t(`${NEAR_FULL} पीस कम`, `${NEAR_FULL} short`), t("इतने पीस कम हों तो ढेर पीला दिखता है", "Piles this close to a bag show yellow")],
   ];
 
