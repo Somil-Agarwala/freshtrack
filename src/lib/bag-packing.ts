@@ -1,3 +1,4 @@
+import { lineValue } from "./claim";
 import type { BagContent, Company, CountLine, SortedBag } from "@/types";
 
 /** Pieces per sorted bag. Change here and every projection follows. */
@@ -89,14 +90,15 @@ export interface MrpTier {
  * Traceability survives through sourceCollectionIds.
  */
 export function buildMrpTiers(lines: CountLine[]): MrpTier[] {
-  const tiers = new Map<string, { companyId: string; mrp: number; pieces: number; collections: Set<string> }>();
+  const tiers = new Map<string, { companyId: string; mrp: number; pieces: number; value: number; collections: Set<string> }>();
 
   lines
     .filter((line) => !line.packed)
     .forEach((line) => {
       const key = `${line.companyId}::${line.mrp}`;
-      const entry = tiers.get(key) ?? { companyId: line.companyId, mrp: line.mrp, pieces: 0, collections: new Set<string>() };
+      const entry = tiers.get(key) ?? { companyId: line.companyId, mrp: line.mrp, pieces: 0, value: 0, collections: new Set<string>() };
       entry.pieces += line.quantity;
+      entry.value += lineValue(line);
       entry.collections.add(line.collectionId);
       tiers.set(key, entry);
     });
@@ -112,7 +114,7 @@ export function buildMrpTiers(lines: CountLine[]): MrpTier[] {
         fullBags,
         remainder,
         totalBags: fullBags + (remainder > 0 ? 1 : 0),
-        value: entry.pieces * entry.mrp,
+        value: entry.value,
         sourceCollectionIds: Array.from(entry.collections),
       };
     })
@@ -212,9 +214,7 @@ export function peekCollectionNumbers(
   return issueCollectionNumbers(companyCode, companyId, dateStr, { ...sequence }, count);
 }
 
-export function sortedBagValue(bag: SortedBag): number {
-  return bag.pieceCount * bag.mrp;
-}
+export { bagValue as sortedBagValue } from "./claim";
 
 /**
  * Records which pickups each new bag's pieces came from. Bags of one
@@ -223,30 +223,33 @@ export function sortedBagValue(bag: SortedBag): number {
  * pile. `collectedOn` maps a collection id to its pickup date.
  */
 export function fillBagContents(bags: SortedBag[], lines: CountLine[], collectedOn: Map<string, string>): SortedBag[] {
-  const queues = new Map<string, { collectionId: string; left: number }[]>();
+  const queues = new Map<string, { collectionId: string; left: number; rate: number }[]>();
   lines
     .slice()
     .sort((a, b) => (collectedOn.get(a.collectionId) ?? "").localeCompare(collectedOn.get(b.collectionId) ?? "") || a.id.localeCompare(b.id))
     .forEach((line) => {
       const key = `${line.companyId}::${line.mrp}`;
       const queue = queues.get(key) ?? [];
-      queue.push({ collectionId: line.collectionId, left: line.quantity });
+      queue.push({ collectionId: line.collectionId, left: line.quantity, rate: line.rate ?? line.mrp });
       queues.set(key, queue);
     });
 
   return bags.map((bag) => {
     const queue = queues.get(`${bag.companyId}::${bag.mrp}`) ?? [];
-    const byCollection = new Map<string, number>();
+    const byCollection = new Map<string, { pieces: number; value: number }>();
     let need = bag.pieceCount;
     while (need > 0 && queue.length > 0) {
       const head = queue[0];
       const take = Math.min(need, head.left);
-      byCollection.set(head.collectionId, (byCollection.get(head.collectionId) ?? 0) + take);
+      const sofar = byCollection.get(head.collectionId) ?? { pieces: 0, value: 0 };
+      byCollection.set(head.collectionId, { pieces: sofar.pieces + take, value: sofar.value + take * head.rate });
       head.left -= take;
       need -= take;
       if (head.left === 0) queue.shift();
     }
-    const contents: BagContent[] = Array.from(byCollection, ([collectionId, pieces]) => ({ collectionId, pieces }));
-    return contents.length ? { ...bag, contents, sourceCollectionIds: contents.map((c) => c.collectionId) } : bag;
+    const contents: BagContent[] = Array.from(byCollection, ([collectionId, c]) => ({ collectionId, pieces: c.pieces, value: Math.round(c.value * 100) / 100 }));
+    if (!contents.length) return bag;
+    const claimValue = Math.round(contents.reduce((s, c) => s + (c.value ?? 0), 0) * 100) / 100;
+    return { ...bag, contents, claimValue, sourceCollectionIds: contents.map((c) => c.collectionId) };
   });
 }

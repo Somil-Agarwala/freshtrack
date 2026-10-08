@@ -65,7 +65,7 @@ export function ProductsScreen({ initialSearch = "" }: { initialSearch?: string 
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[17px] font-bold leading-tight">{p.name}</span>
                   <span className="block truncate text-sm text-ink-dim">
-                    {company?.name} · {p.sku} · {t("लागत", "cost")} ₹{p.costPrice}/{p.unit}
+                    {company?.name} · {p.sku} · {p.claimRate !== undefined ? `${t("क्लेम", "claim")} ₹${p.claimRate}` : `${t("लागत", "cost")} ₹${p.costPrice}`}/{p.unit}
                   </span>
                   {counted > 0 && <span className="block text-[13px] text-ink-faint">{t(`${counted.toLocaleString("en-IN")} पीस गिने गए`, `${counted.toLocaleString("en-IN")} pieces counted`)}</span>}
                 </span>
@@ -134,6 +134,23 @@ function ProductSheet({ product, isNew, onClose, onSave }: { product: Product; i
             <input className={inputClass} inputMode="decimal" value={draft.costPrice || ""} onChange={(e) => setDraft({ ...draft, costPrice: number(e.target.value) })} />
           </Field>
         </div>
+        <Field
+          hi="क्लेम रेट ₹ (हर पीस)"
+          en="Claim rate ₹ (per piece)"
+          optional
+          hint={t("कंपनी हर ख़राब पीस का कितना देती है। खाली छोड़ें तो MRP पर क्लेम होगा।", "What the company pays per damaged piece. Leave empty to claim at MRP.")}
+        >
+          <input
+            className={inputClass}
+            inputMode="decimal"
+            value={draft.claimRate ?? ""}
+            placeholder={t(`MRP ₹${draft.mrp}`, `MRP ₹${draft.mrp}`)}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^\d.]/g, "");
+              setDraft({ ...draft, claimRate: v === "" ? undefined : Number(v) });
+            }}
+          />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field hi="SKU" en="SKU" optional>
             <input className={inputClass} value={draft.sku} onChange={(e) => setDraft({ ...draft, sku: e.target.value.toUpperCase() })} placeholder={t("अपने आप", "Auto")} />

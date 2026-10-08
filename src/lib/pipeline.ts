@@ -1,4 +1,5 @@
 import { BAG_CAPACITY, buildMrpTiers, type MrpTier } from "./bag-packing";
+import { bagValue, lineValue } from "./claim";
 import { addDays, daysBetween, daysSince } from "./format";
 import { today } from "./utils";
 import type { BagContent, CollectionBag, CountLine, Dispatch, PartyShare, SortedBag } from "@/types";
@@ -48,9 +49,7 @@ export function readyBags(sortedBags: SortedBag[], companyId: string | "all" = "
   return sortedBags.filter((b) => b.status === "ready" && (companyId === "all" || b.companyId === companyId));
 }
 
-export function bagValue(bag: SortedBag) {
-  return bag.pieceCount * bag.mrp;
-}
+export { bagValue } from "./claim";
 
 export function sumValue(bags: SortedBag[]) {
   return bags.reduce((sum, b) => sum + bagValue(b), 0);
@@ -98,7 +97,7 @@ export function quarterStart(date = today()) {
 /** Average value of one counted piece, to estimate uncounted bags. */
 export function pieceEstimates(countLines: CountLine[], collections: CollectionBag[]) {
   const pieces = countLines.reduce((s, l) => s + l.quantity, 0);
-  const value = countLines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+  const value = countLines.reduce((s, l) => s + lineValue(l), 0);
   const counted = collections.filter((c) => c.status !== "uncounted").length;
   return {
     valuePerPiece: pieces ? value / pieces : 10,
@@ -169,7 +168,7 @@ export function partySharesForBags(bags: SortedBag[], collections: CollectionBag
       if (!distributorId) return;
       const share = shares.get(distributorId) ?? { distributorId, pieces: 0, value: 0 };
       share.pieces += part.pieces;
-      share.value += part.pieces * bag.mrp;
+      share.value += part.value ?? part.pieces * (bagValue(bag) / (bag.pieceCount || 1));
       shares.set(distributorId, share);
     })
   );

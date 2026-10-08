@@ -1,3 +1,4 @@
+import { bagValue, lineValue } from "./claim";
 import * as XLSX from "xlsx";
 import * as A from "./analytics";
 import type { Dataset as AnalyticsDataset } from "./analytics";
@@ -58,7 +59,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       Company: companies.find((c) => c.id === bag.companyId)?.name ?? "",
       "MRP (INR)": bag.mrp,
       Pieces: bag.pieceCount,
-      "Claim Value (INR)": bag.pieceCount * bag.mrp,
+      "Claim Value (INR)": bagValue(bag),
       "Full Bag": bag.isFull ? "Yes" : "Part-filled",
       Status: SORTED_BAG_STATUS_LABELS[bag.status],
       Created: formatDate(bag.createdDate),
@@ -67,12 +68,13 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
   });
 
   // Grouped by company then MRP, because each company is a separate claim.
-  const byTier = new Map<string, { companyId: string; mrp: number; bags: number; pieces: number }>();
+  const byTier = new Map<string, { companyId: string; mrp: number; bags: number; pieces: number; value: number }>();
   bags.forEach((bag) => {
     const key = `${bag.companyId}::${bag.mrp}`;
-    const entry = byTier.get(key) ?? { companyId: bag.companyId, mrp: bag.mrp, bags: 0, pieces: 0 };
+    const entry = byTier.get(key) ?? { companyId: bag.companyId, mrp: bag.mrp, bags: 0, pieces: 0, value: 0 };
     entry.bags += 1;
     entry.pieces += bag.pieceCount;
+    entry.value += bagValue(bag);
     byTier.set(key, entry);
   });
 
@@ -83,7 +85,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       "MRP (INR)": entry.mrp,
       Bags: entry.bags,
       Pieces: entry.pieces,
-      "Claim Value (INR)": entry.pieces * entry.mrp,
+      "Claim Value (INR)": entry.value,
     }));
 
   summary.push({
@@ -91,7 +93,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
     "MRP (INR)": "",
     Bags: bags.length,
     Pieces: bags.reduce((sum, b) => sum + b.pieceCount, 0),
-    "Claim Value (INR)": bags.reduce((sum, b) => sum + b.pieceCount * b.mrp, 0),
+    "Claim Value (INR)": bags.reduce((sum, b) => sum + bagValue(b), 0),
   });
 
   const includedCollectionIds = new Set(bags.flatMap((b) => b.sourceCollectionIds));
@@ -110,7 +112,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
         Product: product?.name ?? "",
         "MRP (INR)": line.mrp,
         Pieces: line.quantity,
-        "Value (INR)": line.quantity * line.mrp,
+        "Value (INR)": lineValue(line),
       };
     });
 
@@ -158,7 +160,7 @@ export function exportDispatch({
       "Bag Number": bag.bagNumber,
       "MRP (INR)": bag.mrp,
       Pieces: bag.pieceCount,
-      "Claim Value (INR)": bag.pieceCount * bag.mrp,
+      "Claim Value (INR)": bagValue(bag),
       Parties: Array.from(new Set(parties)).join(", "),
     };
   });
@@ -197,7 +199,7 @@ export function exportCollections({
       Counted: collection.countedDate ? formatDate(collection.countedDate) : "",
       "Estimated Pieces": collection.estimatedPieces ?? "",
       "Counted Pieces": lines.reduce((sum, l) => sum + l.quantity, 0),
-      "Counted Value (INR)": lines.reduce((sum, l) => sum + l.quantity * l.mrp, 0),
+      "Counted Value (INR)": lines.reduce((sum, l) => sum + lineValue(l), 0),
     };
   });
 

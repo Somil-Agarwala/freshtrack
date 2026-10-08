@@ -165,6 +165,21 @@ dashboard.
 PINs are checked in the browser, so they tell the app who is working; they
 are not real security until sign-in moves to Supabase auth.
 
+## Real data: Haldiram claim of 16 Aug 2026
+
+`src/lib/data/haldiram-claim-16082026.ts` is generated from sheet
+"16082026" of `HALDIRAM_DAMAGE_CLAIM_SHEET.xlsx`: 26 Haldiram items with
+their claim rates, 35 parties, and the pieces each party sent. 
+`src/lib/data/haldiram-import.ts` turns it into the app's own records: a
+counted pickup per party, the pieces packed into 409 bags of 700 by MRP,
+and dispatch HLD-DSP-2026-0001 (claim ₹14,45,015.18, passed
+₹13,29,413.97 on 29 Aug). It replaces the earlier made-up Haldiram samples.
+
+**Claim rate.** Haldiram pays its own rate per damaged piece (₹3.74 for a
+₹5 Namkeen), not the MRP. A product's optional `claimRate` is fixed onto
+each counted line, and every claim, bag and party share is valued with it;
+products without one are claimed at MRP.
+
 ## Money per party
 
 Bags carry no money of their own. A tied bag records how many pieces came

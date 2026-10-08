@@ -23,6 +23,7 @@ import {
   seedSequence,
   type SequenceState,
 } from "./bag-packing";
+import { bagValue } from "./claim";
 import { partySharesForBags } from "./pipeline";
 import { today } from "./utils";
 import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, Product, SortedBag, UserAccount } from "@/types";
@@ -218,6 +219,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           productId: line.productId,
           mrp: line.mrp,
           quantity: line.quantity,
+          // The claim rate is fixed at count time, like the MRP.
+          rate: products.find((p) => p.id === line.productId)?.claimRate,
           packed: false,
         }));
         return [...withoutOld, ...created];
@@ -226,7 +229,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         prev.map((c) => (c.id === collectionId ? { ...c, status: "counted", countedDate: today(), countedBy: actorRef.current } : c))
       );
     },
-    [collections]
+    [collections, products]
   );
 
   // Shared by "pack everything" and "pack one company". Passing a filter
@@ -307,7 +310,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const pieces = tier.fullBags * BAG_CAPACITY;
         created.push(
           ...packTiersIntoBags(
-            [{ ...tier, pieces, remainder: 0, totalBags: tier.fullBags, value: pieces * tier.mrp, sourceCollectionIds: Array.from(sources) }],
+            [{ ...tier, pieces, remainder: 0, totalBags: tier.fullBags, value: 0, sourceCollectionIds: Array.from(sources) }],
             companies,
             today(),
             sequence
@@ -362,7 +365,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         sentDate: today(),
         bagCount: selected.length,
         pieceCount: selected.reduce((sum, b) => sum + b.pieceCount, 0),
-        claimedValue: selected.reduce((sum, b) => sum + b.pieceCount * b.mrp, 0),
+        claimedValue: Math.round(selected.reduce((sum, b) => sum + bagValue(b), 0) * 100) / 100,
         status: "sent",
         // Fixed now, so each party's account survives the bags later being
         // cleared out once the claim settles.

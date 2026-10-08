@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { claimRateOf } from "@/lib/claim";
 import { useFlash, useVoiceInput } from "@/lib/device";
 import { inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
@@ -331,7 +332,7 @@ function Keypad({ bag, product, current, edit, onSave }: { bag: CollectionBag; p
           </span>
           <span className="text-right">
             <span className="block text-lg font-bold text-count">{t("पीस", "pieces")}</span>
-            <span className="block text-[15px] text-ink-dim">= {inr(qty * product.mrp)}</span>
+            <span className="block text-[15px] text-ink-dim">= {inr(qty * claimRateOf(product, product.mrp))}</span>
           </span>
         </div>
         {!edit && current > 0 && (

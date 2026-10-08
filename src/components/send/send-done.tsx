@@ -1,5 +1,7 @@
 "use client";
 
+import { bagValue } from "@/lib/claim";
+
 import Link from "next/link";
 import { shareOnWhatsApp } from "@/lib/device";
 import { fullDate, inr, num } from "@/lib/format";
@@ -139,7 +141,7 @@ export function slipRows(bags: SortedBag[]): SlipRow[] {
     const row = byMrp.get(b.mrp) ?? { mrp: b.mrp, bags: 0, pieces: 0, value: 0 };
     row.bags += 1;
     row.pieces += b.pieceCount;
-    row.value += b.pieceCount * b.mrp;
+    row.value += bagValue(b);
     byMrp.set(b.mrp, row);
   });
   return Array.from(byMrp.values()).sort((a, b) => b.value - a.value);

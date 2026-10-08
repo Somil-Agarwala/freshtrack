@@ -44,6 +44,11 @@ export interface Product {
   mrp: number;
   /** What the stock costs you. Drives the loss-value estimate on a record. */
   costPrice: number;
+  /**
+   * What the company pays per damaged piece, when it is not the MRP
+   * (Haldiram pays its own rate). Leave unset to claim at MRP.
+   */
+  claimRate?: number;
   isActive: boolean;
 }
 
@@ -118,6 +123,8 @@ export interface CountLine {
   /** Snapshotted at count time so later MRP changes cannot rewrite history. */
   mrp: number;
   quantity: number;
+  /** Claim rate per piece, snapshotted at count time like the MRP. Unset = MRP. */
+  rate?: number;
   /** Set once these pieces have been packed into a SortedBag. */
   packed: boolean;
 }
@@ -151,11 +158,15 @@ export interface SortedBag {
   contents?: BagContent[];
   /** User who tied the bag. */
   tiedBy?: string;
+  /** Claim value of the bag at the pieces' claim rates. Unset = pieces × MRP. */
+  claimValue?: number;
 }
 
 export interface BagContent {
   collectionId: string;
   pieces: number;
+  /** Claim value of those pieces, at their counted rate. */
+  value?: number;
 }
 
 /** One party's part of a dispatch: its pieces and what they claim. */

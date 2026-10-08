@@ -1,5 +1,7 @@
 "use client";
 
+import { lineValue } from "@/lib/claim";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -43,7 +45,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
     lines.reduce((m, l) => m.set(l.productId, { mrp: l.mrp, qty: (m.get(l.productId)?.qty ?? 0) + l.quantity }), new Map<string, { mrp: number; qty: number }>())
   ).sort((a, b) => b[1].qty - a[1].qty);
   const pieces = lines.reduce((s, l) => s + l.quantity, 0);
-  const value = lines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+  const value = lines.reduce((s, l) => s + lineValue(l), 0);
   const loose = lines.filter((l) => !l.packed).reduce((s, l) => s + l.quantity, 0);
   const anyPacked = lines.some((l) => l.packed);
 

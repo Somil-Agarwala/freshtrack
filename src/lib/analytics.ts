@@ -1,3 +1,4 @@
+import { bagValue, lineValue } from "./claim";
 import { BAG_CAPACITY, buildMrpTiers } from "./bag-packing";
 import { formatCurrency, formatNumber } from "./utils";
 import { REASON_LABELS } from "./constants";
@@ -91,14 +92,14 @@ export function pipeline(d: Dataset): PipelineStage[] {
       stage: "Counted, not packed",
       bags: new Set(unpacked.map((l) => l.collectionId)).size,
       pieces: unpacked.reduce((s, l) => s + l.quantity, 0),
-      value: unpacked.reduce((s, l) => s + l.quantity * l.mrp, 0),
+      value: unpacked.reduce((s, l) => s + lineValue(l), 0),
       href: "/sorted-bags",
     },
     {
       stage: "Ready to send",
       bags: ready.length,
       pieces: ready.reduce((s, b) => s + b.pieceCount, 0),
-      value: ready.reduce((s, b) => s + b.pieceCount * b.mrp, 0),
+      value: ready.reduce((s, b) => s + bagValue(b), 0),
       href: "/sorted-bags",
     },
     {
@@ -203,13 +204,13 @@ export interface PartyRow {
 }
 
 export function partyBreakdown(d: Dataset): PartyRow[] {
-  const total = d.countLines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+  const total = d.countLines.reduce((s, l) => s + lineValue(l), 0);
   return d.distributors
     .map((party) => {
       const bags = d.collections.filter((c) => c.distributorId === party.id);
       const ids = new Set(bags.map((c) => c.id));
       const lines = d.countLines.filter((l) => ids.has(l.collectionId));
-      const value = lines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+      const value = lines.reduce((s, l) => s + lineValue(l), 0);
 
       // Variance only over bags that were both estimated AND counted.
       const comparable = bags.filter((c) => c.estimatedPieces != null && c.status !== "uncounted");
@@ -242,7 +243,7 @@ export function regionBreakdown(d: Dataset) {
     const e = map.get(region) ?? { pieces: 0, value: 0, bags: 0 };
     e.bags += 1;
     e.pieces += lines.reduce((s, l) => s + l.quantity, 0);
-    e.value += lines.reduce((s, l) => s + l.quantity * l.mrp, 0);
+    e.value += lines.reduce((s, l) => s + lineValue(l), 0);
     map.set(region, e);
   });
   return Array.from(map.entries())
@@ -259,7 +260,7 @@ export function topSkus(d: Dataset, limit = 10) {
   d.countLines.forEach((l) => {
     const e = map.get(l.productId) ?? { pieces: 0, value: 0 };
     e.pieces += l.quantity;
-    e.value += l.quantity * l.mrp;
+    e.value += lineValue(l);
     map.set(l.productId, e);
   });
   return Array.from(map.entries())
@@ -277,7 +278,7 @@ export function categoryBreakdown(d: Dataset) {
     const cat = d.products.find((p) => p.id === l.productId)?.category ?? "Uncategorised";
     const e = map.get(cat) ?? { pieces: 0, value: 0 };
     e.pieces += l.quantity;
-    e.value += l.quantity * l.mrp;
+    e.value += lineValue(l);
     map.set(cat, e);
   });
   return Array.from(map.entries())
@@ -291,7 +292,7 @@ export function mrpBreakdown(d: Dataset) {
   d.countLines.forEach((l) => {
     const e = map.get(l.mrp) ?? { pieces: 0, bags: 0, value: 0 };
     e.pieces += l.quantity;
-    e.value += l.quantity * l.mrp;
+    e.value += lineValue(l);
     map.set(l.mrp, e);
   });
   d.sortedBags.forEach((b) => {
@@ -518,7 +519,7 @@ export function insights(d: Dataset): Insight[] {
     out.push({
       level: "info",
       title: `${ready.length} bag${ready.length === 1 ? "" : "s"} ready for the factory`,
-      detail: `${formatCurrency(ready.reduce((s, b) => s + b.pieceCount * b.mrp, 0))} can be claimed on the next run.`,
+      detail: `${formatCurrency(ready.reduce((s, b) => s + bagValue(b), 0))} can be claimed on the next run.`,
       href: "/sorted-bags",
     });
   }

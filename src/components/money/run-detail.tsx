@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DISPATCH_STATUS_HI, DISPATCH_STATUS_LABELS } from "@/lib/constants";
 import { shareOnWhatsApp, useFlash } from "@/lib/device";
 import { exportDispatch } from "@/lib/export";
-import { daysBetween, daysSince, fullDate, inr, num } from "@/lib/format";
+import { daysBetween, daysSince, fullDate, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { dispatchShares, isAwaitingPayment, shortfall, splitDispatch } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
@@ -73,9 +73,14 @@ export function RunDetail({ dispatchId }: { dispatchId: string }) {
 
       <ScreenBody className="gap-3">
         <div className="grid grid-cols-3 gap-2">
-          <StatTile label={t("क्लेम", "Claim")} value={inr(d.claimedValue)} foot={fullDate(d.sentDate, lang)} />
-          <StatTile label={t("मिला", "Received")} value={owed ? "—" : inr(d.receivedValue ?? 0)} foot={d.settledDate ? t(`${daysBetween(d.sentDate, d.settledDate)} दिन में`, `in ${daysBetween(d.sentDate, d.settledDate)} days`) : t(`${daysSince(d.sentDate)} दिन से`, `${daysSince(d.sentDate)} days`)} tone="money" />
-          <StatTile label={owed ? t("बाकी", "Pending") : t("कटौती", "Deducted")} value={inr(owed ? d.claimedValue : shortfall(d))} tone="factory" />
+          <StatTile label={t("क्लेम", "Claim")} value={lakhShort(d.claimedValue)} foot={inr(d.claimedValue)} />
+          <StatTile
+            label={t("मिला", "Received")}
+            value={owed ? "—" : lakhShort(d.receivedValue ?? 0)}
+            foot={owed ? t(`${daysSince(d.sentDate)} दिन से`, `${daysSince(d.sentDate)} days`) : `${inr(d.receivedValue ?? 0)}${d.settledDate ? ` · ${t(`${daysBetween(d.sentDate, d.settledDate)} दिन`, `${daysBetween(d.sentDate, d.settledDate)}d`)}` : ""}`}
+            tone="money"
+          />
+          <StatTile label={owed ? t("बाकी", "Pending") : t("कटौती", "Deducted")} value={lakhShort(owed ? d.claimedValue : shortfall(d))} foot={inr(owed ? d.claimedValue : shortfall(d))} tone="factory" />
         </div>
 
         <Slip dispatch={d} company={company} rows={slipRows(bags)} />

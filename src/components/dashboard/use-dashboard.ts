@@ -1,4 +1,5 @@
 "use client";
+import { lineValue } from "@/lib/claim";
 
 import { useMemo } from "react";
 import { addDays, daysSince, lakhShort, num } from "@/lib/format";
@@ -194,7 +195,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
     const byParty = new Map<string, number>();
     recentLines.forEach((l) => {
       const party = collections.find((c) => c.id === l.collectionId)?.distributorId ?? "";
-      byParty.set(party, (byParty.get(party) ?? 0) + l.quantity * l.mrp);
+      byParty.set(party, (byParty.get(party) ?? 0) + lineValue(l));
     });
     const parties = Array.from(byParty.entries())
       .map(([id, value]) => ({ name: distributors.find((d) => d.id === id)?.name ?? "—", value }))
