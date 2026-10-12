@@ -250,14 +250,11 @@ export interface Dispatch {
 export interface UserAccount {
   id: string;
   name: string;
+  /** The email this person signs in with; it links their login to this record. */
   email: string;
   role: UserRole;
   isActive: boolean;
   lastActive: string;
-  /**
-   * 4-digit sign-in PIN. Checked in the browser for now, so it only says
-   * who is using the phone; it is not real security until sign-in moves
-   * to the database (Supabase auth).
-   */
-  pin: string;
+  /** Old 4-digit PIN from before email logins. No longer used. */
+  pin?: string;
 }

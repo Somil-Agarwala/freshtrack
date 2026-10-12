@@ -64,10 +64,10 @@ export const sortedBags: SortedBag[] = [];
 export const dispatches: Dispatch[] = [];
 export const records: DamageRecord[] = [];
 
-// Nikhil and Debu run the godown; the admin owns the business. Change the
-// PINs after the first sign-in.
+// Everyone signs in with their own email and password; the email links the
+// login to the person here. Nikhil Sharma and Shubham run the godown.
 export const users: UserAccount[] = [
-  { id: "u1", name: "Somil", email: "somil@freshtrack.app", role: "admin", isActive: true, lastActive: "", pin: "0000" },
-  { id: "u2", name: "Nikhil", email: "nikhil@freshtrack.app", role: "manager", isActive: true, lastActive: "", pin: "1111" },
-  { id: "u3", name: "Debu", email: "debu@freshtrack.app", role: "manager", isActive: true, lastActive: "", pin: "2222" },
+  { id: "u-admin", name: "Admin", email: "admin@gmail.com", role: "admin", isActive: true, lastActive: "" },
+  { id: "u-nikhil-sharma", name: "Nikhil Sharma", email: "nikhilsharma@gmail.com", role: "manager", isActive: true, lastActive: "" },
+  { id: "u-shubham", name: "Shubham", email: "shubham@gmail.com", role: "manager", isActive: true, lastActive: "" },
 ];

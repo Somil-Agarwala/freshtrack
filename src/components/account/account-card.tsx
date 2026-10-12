@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { LogoutIcon } from "@/components/ft/icons";
 import { ROLE_COLOR } from "./sign-in-screen";
 
-/** Who is signed in on this phone, with the switch-user button. */
+/** Who is signed in on this phone, with the log-out button. */
 export function AccountCard({ className }: { className?: string }) {
   const { t, sub } = useLang();
   const { user, signOut } = useSession();
@@ -20,10 +20,11 @@ export function AccountCard({ className }: { className?: string }) {
         <span className="block truncate text-sm text-ink-dim">
           {t(ROLE_LABELS[user.role].hi, ROLE_LABELS[user.role].en)} · {sub(ROLE_LABELS[user.role].hi, ROLE_LABELS[user.role].en)}
         </span>
+        <span className="block truncate text-sm text-ink-faint">{user.email}</span>
       </span>
       <button type="button" onClick={signOut} className="flex h-12 shrink-0 items-center gap-1.5 rounded-[14px] bg-elevated px-3 text-[15px] font-bold hover:bg-raised">
         <LogoutIcon size={20} />
-        {t("यूज़र बदलें", "Switch user")}
+        {t("लॉग आउट", "Log out")}
       </button>
     </div>
   );

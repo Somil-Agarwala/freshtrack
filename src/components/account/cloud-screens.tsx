@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useLang } from "@/lib/i18n";
-import { useSession } from "@/lib/session";
 import { useSync } from "@/lib/store";
 import { SyncError, type SyncErrorKind } from "@/lib/sync/engine";
 import { cn } from "@/lib/utils";
@@ -42,6 +41,8 @@ function useProblemText() {
         return t("डेटाबेस अभी तैयार नहीं है", "The database is not set up yet");
       case "auth":
         return t("ईमेल या पासवर्ड गलत है", "Wrong email or password");
+      case "invalid":
+        return t("यह बदलाव नहीं हो सका", "That change was not accepted");
       default:
         return t("सर्वर से जवाब नहीं आया, फिर से कोशिश करें", "The server did not answer, try again");
     }
@@ -51,10 +52,10 @@ function useProblemText() {
 /* ------------------------------------------------------------------ */
 
 /**
- * Once per phone: the owner signs the phone in to the business. After that
- * staff only tap their name and PIN, and every phone shows the same data.
+ * Each person signs in with their own email and password, and goes straight
+ * into the app as themselves. The phone stays signed in until they log out.
  */
-export function BusinessLogin() {
+export function LoginScreen() {
   const { t, sub } = useLang();
   const { signIn } = useSync();
   const problem = useProblemText();
@@ -81,17 +82,9 @@ export function BusinessLogin() {
     <Page>
       <main className="flex flex-1 flex-col justify-center gap-5 py-8">
         <div>
-          <span className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-pickup-tint text-pickup">
-            <CloudIcon size={34} />
-          </span>
-          <h1 className="font-display text-[30px] font-extrabold leading-[1.1]">{t("इस फ़ोन को जोड़ें", "Connect this phone")}</h1>
-          <p className="mt-1.5 text-base leading-snug text-ink-dim">
-            {t(
-              "मालिक एक बार अपना ईमेल और पासवर्ड डालें। फिर इस फ़ोन पर भी वही डेटा दिखेगा जो बाकी सब फ़ोन पर है।",
-              "The owner signs in once. After that this phone shows the same data as every other phone."
-            )}
-          </p>
-          <p className="mt-1 text-sm text-ink-faint">{sub("मालिक एक बार लॉग इन करें", "The owner signs in once")}</p>
+          <h1 className="font-display text-[32px] font-extrabold leading-[1.1]">{t("लॉग इन करें", "Sign in")}</h1>
+          <p className="mt-1.5 text-base leading-snug text-ink-dim">{t("अपना ईमेल और पासवर्ड डालें", "Enter your email and password")}</p>
+          <p className="mt-0.5 text-sm text-ink-faint">{sub("अपना ईमेल और पासवर्ड डालें", "Enter your email and password")}</p>
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
@@ -136,10 +129,10 @@ export function BusinessLogin() {
           )}
 
           <BigButton tone="money" type="submit" disabled={busy || !email.trim() || !password}>
-            {busy ? t("जोड़ रहे हैं…", "Connecting…") : t("फ़ोन जोड़ें", "Connect phone")}
+            {busy ? t("लॉग इन हो रहा है…", "Signing in…") : t("लॉग इन करें", "Sign in")}
           </BigButton>
         </form>
-        <p className="text-center text-sm text-ink-faint">{t("पासवर्ड नहीं पता? मालिक से पूछें", "No password? Ask the owner")}</p>
+        <p className="text-center text-sm text-ink-faint">{t("पासवर्ड भूल गए? एडमिन से नया पासवर्ड लें", "Forgot your password? Ask the admin for a new one")}</p>
       </main>
     </Page>
   );
@@ -186,6 +179,31 @@ export function SyncProblem() {
             {t("दूसरे खाते से लॉग इन करें", "Use another account")}
           </button>
         )}
+      </main>
+    </Page>
+  );
+}
+
+/** Signed in, but no FreshTrack user has this email (or it was switched off). */
+export function NoProfile() {
+  const { t } = useLang();
+  const { account, signOut } = useSync();
+  return (
+    <Page>
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-danger-tint text-danger-soft">
+          <AlertIcon size={32} />
+        </span>
+        <p className="font-display text-2xl font-extrabold">{t("यह खाता FreshTrack में चालू नहीं है", "This login is not set up in FreshTrack")}</p>
+        <p className="text-ink-dim">
+          <b className="text-ink">{account?.email}</b>
+          <br />
+          {t("एडमिन से कहें कि यूज़र की सूची में यह ईमेल जोड़ें", "Ask the admin to add this email on the Users screen")}
+        </p>
+        <BigButton tone="neutral" className="max-w-xs" onClick={() => void signOut()}>
+          <LogoutIcon size={22} />
+          {t("लॉग आउट", "Log out")}
+        </BigButton>
       </main>
     </Page>
   );
@@ -251,16 +269,14 @@ function ago(ms: number | undefined, t: (hi: string, en: string) => string) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-/** Settings: is this phone in step with the others, and the business account. */
+/** Settings: is this phone in step with the others, and the person's own password. */
 export function ThisDeviceCard() {
   const { t, sub } = useLang();
-  const { can } = useSession();
-  const { mode, account, status, live, syncNow, changePassword, signOut } = useSync();
+  const { mode, status, live, syncNow, changePassword } = useSync();
   const problem = useProblemText();
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [pwState, setPwState] = useState<"idle" | "busy" | "done" | "error">("idle");
-  const [confirmOut, setConfirmOut] = useState(false);
   const [, tick] = useState(0);
 
   // Keeps "2 min ago" current.
@@ -312,59 +328,35 @@ export function ThisDeviceCard() {
         {t("अभी सिंक करें", "Sync now")}
       </button>
 
-      <p className="text-sm text-ink-dim">
-        {t("खाता", "Account")}: <b className="text-ink">{account?.email}</b>
-      </p>
-
-      {can("manageUsers") && (
-        <>
-          <div className="mt-1 flex flex-col gap-2 border-t border-line pt-3">
-            <p className="text-[15px] font-bold">{t("खाते का पासवर्ड बदलें", "Change the account password")}</p>
-            <p className="text-sm text-ink-dim">{t("कम से कम 8 अक्षर। बाकी फ़ोन जुड़े रहेंगे।", "At least 8 characters. Other phones stay connected.")}</p>
-            <div className="grid grid-cols-2 gap-2">
-              <input className={inputClass} type="password" autoComplete="new-password" placeholder={t("नया", "New")} value={pw} onChange={(e) => (setPw(e.target.value), setPwState("idle"))} />
-              <input className={inputClass} type="password" autoComplete="new-password" placeholder={t("फिर से", "Again")} value={pw2} onChange={(e) => (setPw2(e.target.value), setPwState("idle"))} />
-            </div>
-            {pw2.length > 0 && pw !== pw2 && <p className="text-[15px] font-bold text-danger-soft">{t("दोनों पासवर्ड अलग हैं", "The passwords do not match")}</p>}
-            {pwState === "done" && <p className="text-[15px] font-bold text-money">{t("नया पासवर्ड सेव हुआ", "New password saved")}</p>}
-            {pwState === "error" && <p className="text-[15px] font-bold text-danger-soft">{t("पासवर्ड नहीं बदला, फिर कोशिश करें", "Password not changed, try again")}</p>}
-            <BigButton
-              tone="money"
-              className="h-14 text-lg"
-              disabled={!pwReady || pwState === "busy"}
-              onClick={async () => {
-                setPwState("busy");
-                try {
-                  await changePassword(pw);
-                  setPw("");
-                  setPw2("");
-                  setPwState("done");
-                } catch {
-                  setPwState("error");
-                }
-              }}
-            >
-              {t("पासवर्ड सेव करें", "Save password")}
-            </BigButton>
-          </div>
-
-          <div className="flex flex-col gap-2 border-t border-line pt-3">
-            {confirmOut && status.pending > 0 && (
-              <p className="text-[15px] font-bold text-danger-soft">
-                {t(`${status.pending} बदलाव अभी सेव नहीं हुए — लॉग आउट करने पर मिट जाएँगे`, `${status.pending} changes are not saved yet — signing out loses them`)}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => (confirmOut ? void signOut() : setConfirmOut(true))}
-              className={cn(softButton, confirmOut && "border-danger text-danger-soft")}
-            >
-              <LogoutIcon size={22} />
-              {confirmOut ? t("पक्का? फिर से दबाएँ", "Sure? Tap again") : t("इस फ़ोन को खाते से हटाएँ", "Sign this phone out")}
-            </button>
-          </div>
-        </>
-      )}
+      <div className="mt-1 flex flex-col gap-2 border-t border-line pt-3">
+        <p className="text-[15px] font-bold">{t("अपना पासवर्ड बदलें", "Change your password")}</p>
+        <p className="text-sm text-ink-dim">{t("कम से कम 8 अक्षर", "At least 8 characters")}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <input className={inputClass} type="password" autoComplete="new-password" placeholder={t("नया", "New")} value={pw} onChange={(e) => (setPw(e.target.value), setPwState("idle"))} />
+          <input className={inputClass} type="password" autoComplete="new-password" placeholder={t("फिर से", "Again")} value={pw2} onChange={(e) => (setPw2(e.target.value), setPwState("idle"))} />
+        </div>
+        {pw2.length > 0 && pw !== pw2 && <p className="text-[15px] font-bold text-danger-soft">{t("दोनों पासवर्ड अलग हैं", "The passwords do not match")}</p>}
+        {pwState === "done" && <p className="text-[15px] font-bold text-money">{t("नया पासवर्ड सेव हुआ", "New password saved")}</p>}
+        {pwState === "error" && <p className="text-[15px] font-bold text-danger-soft">{t("पासवर्ड नहीं बदला, फिर कोशिश करें", "Password not changed, try again")}</p>}
+        <BigButton
+          tone="money"
+          className="h-14 text-lg"
+          disabled={!pwReady || pwState === "busy"}
+          onClick={async () => {
+            setPwState("busy");
+            try {
+              await changePassword(pw);
+              setPw("");
+              setPw2("");
+              setPwState("done");
+            } catch {
+              setPwState("error");
+            }
+          }}
+        >
+          {t("पासवर्ड सेव करें", "Save password")}
+        </BigButton>
+      </div>
     </section>
   );
 }

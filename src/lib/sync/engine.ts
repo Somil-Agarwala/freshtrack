@@ -22,7 +22,7 @@ export interface Transport {
   commit(baseRev: number, changes: Row[], opIds: string[], actor?: string): Promise<{ ok: boolean; rev: number; applied?: string[] }>;
 }
 
-export type SyncErrorKind = "network" | "auth" | "forbidden" | "setup" | "server";
+export type SyncErrorKind = "network" | "auth" | "forbidden" | "setup" | "server" | "invalid";
 
 export class SyncError extends Error {
   constructor(public kind: SyncErrorKind, message: string) {

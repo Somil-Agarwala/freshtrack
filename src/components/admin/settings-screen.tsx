@@ -1,38 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { BAG_CAPACITY } from "@/lib/bag-packing";
-import { useFlash } from "@/lib/device";
 import { useLang } from "@/lib/i18n";
 import { NEAR_FULL, STALE_CLAIM_DAYS, STALE_COUNT_DAYS, STALE_READY_DAYS } from "@/lib/pipeline";
-import { useSession } from "@/lib/session";
-import { useStore } from "@/lib/store";
 import { AccountCard } from "@/components/account/account-card";
 import { ThisDeviceCard } from "@/components/account/cloud-screens";
 import { GearIcon } from "@/components/ft/icons";
-import { Field, inputClass } from "@/components/ft/kit";
-import { BigButton, ListHeader, Screen, ScreenBody } from "@/components/ft/screen";
+import { ListHeader, Screen, ScreenBody } from "@/components/ft/screen";
 import { LangToggle } from "@/components/layout/lang-toggle";
-import { Notice } from "@/components/ui/notice";
 
 /** Your account, language, and the rules the app works by. */
 export function SettingsScreen() {
   const { t, sub } = useLang();
-  const { user } = useSession();
-  const { saveUser } = useStore();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [again, setAgain] = useState("");
-  const [message, flash] = useFlash();
-
-  const digits = (v: string) => v.replace(/\D/g, "").slice(0, 4);
-  const pinError =
-    current.length === 4 && current !== user?.pin
-      ? t("पुराना PIN गलत है", "Current PIN is wrong")
-      : again.length === 4 && again !== next
-        ? t("दोनों नए PIN अलग हैं", "The new PINs do not match")
-        : null;
-  const pinReady = user && current === user.pin && next.length === 4 && next === again && next !== current;
 
   const rules: [string, string, string][] = [
     [t("एक बैग में पीस", "Pieces per bag"), String(BAG_CAPACITY), t("इतने पीस होते ही बैग भर जाता है और नया नंबर वाला बैग खुलता है", "At this many pieces a bag is full and a new numbered bag opens")],
@@ -48,39 +27,6 @@ export function SettingsScreen() {
       <ScreenBody className="gap-4">
         <AccountCard />
         <ThisDeviceCard />
-
-        <section className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-4">
-          <p className="text-[15px] font-bold">
-            {t("अपना PIN बदलें", "Change your PIN")} <span className="font-medium text-ink-faint">· {sub("अपना PIN बदलें", "Change your PIN")}</span>
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <Field hi="पुराना" en="Current">
-              <input className={inputClass} type="password" inputMode="numeric" value={current} onChange={(e) => setCurrent(digits(e.target.value))} />
-            </Field>
-            <Field hi="नया" en="New">
-              <input className={inputClass} type="password" inputMode="numeric" value={next} onChange={(e) => setNext(digits(e.target.value))} />
-            </Field>
-            <Field hi="फिर से" en="Again">
-              <input className={inputClass} type="password" inputMode="numeric" value={again} onChange={(e) => setAgain(digits(e.target.value))} />
-            </Field>
-          </div>
-          {pinError && <p className="text-[15px] font-bold text-danger-soft">{pinError}</p>}
-          <BigButton
-            tone="money"
-            className="h-14 text-lg"
-            disabled={!pinReady}
-            onClick={() => {
-              if (!user || !pinReady) return;
-              saveUser({ ...user, pin: next });
-              setCurrent("");
-              setNext("");
-              setAgain("");
-              flash(t("नया PIN सेव हुआ", "New PIN saved"));
-            }}
-          >
-            {t("PIN सेव करें", "Save PIN")}
-          </BigButton>
-        </section>
 
         <section className="flex items-center justify-between gap-3 rounded-[20px] border border-line bg-surface p-4">
           <span>
@@ -108,7 +54,6 @@ export function SettingsScreen() {
           <p className="mt-2 text-sm text-ink-faint">{t("ये नियम अभी ऐप में तय हैं।", "These rules are fixed in the app for now.")}</p>
         </section>
       </ScreenBody>
-      <Notice message={message} />
     </Screen>
   );
 }

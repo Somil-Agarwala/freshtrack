@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as seed from "./seed-data";
 import { peekCollectionNumbers } from "./bag-packing";
 import { emptyData, type AppData } from "./sync/app-data";
-import { CLOUD, CloudAuth, CloudTransport, type CloudSession } from "./sync/cloud";
+import { CLOUD, CloudAuth, CloudTransport, adminRemoveLogin, adminSetLogin, type CloudSession } from "./sync/cloud";
 import { SyncEngine, type KV, type SyncStatus } from "./sync/engine";
 import type { CollectionInput, CountInput, OpName } from "./sync/ops";
 import { LiveRev } from "./sync/realtime";
@@ -72,15 +72,20 @@ export interface SyncValue {
   mode: "cloud" | "local";
   /** False until this device's saved sign-in has been read. */
   checked: boolean;
-  /** The business account this device is signed in with. */
+  /** The login this device is signed in with. */
   account: { email: string } | null;
   status: SyncStatus;
   /** Realtime connected: other devices' changes arrive within seconds. */
   live: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  /** Signs this device out of the business account and forgets its copy of the data. */
+  /** Signs this person out. Changes not yet saved stay on the device and are saved by the next person who signs in. */
   signOut: () => Promise<void>;
+  /** The signed-in person's own password. */
   changePassword: (password: string) => Promise<void>;
+  /** Admin: add a person's login or set a new password (null keeps it). */
+  setLogin: (email: string, password: string | null, isAdmin: boolean) => Promise<void>;
+  /** Admin: stop a login from opening FreshTrack. */
+  removeLogin: (email: string) => Promise<void>;
   syncNow: () => void;
 }
 
@@ -137,11 +142,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return a.subscribe(() => setSession(a.session));
   }, [mode]);
 
-  // One engine per business account; started when signed in.
-  const scope = session?.userId ?? "";
+  // A fresh engine for each sign-in. The data saved on the device belongs to
+  // the business, not the person, so the next person carries on from it.
+  const loginId = session?.userId ?? "";
   useEffect(() => {
-    if (mode !== "cloud" || !auth || !scope) return;
-    const e = new SyncEngine({ transport: new CloudTransport(auth), seed: seedData, storage: browserStorage(), scope, ...noTimer });
+    if (mode !== "cloud" || !auth || !loginId) return;
+    const e = new SyncEngine({ transport: new CloudTransport(auth), seed: seedData, storage: browserStorage(), scope: CLOUD.url, ...noTimer });
     setEngine(e);
     e.start();
 
@@ -182,7 +188,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       e.stop();
       setLive(false);
     };
-  }, [mode, auth, scope]);
+  }, [mode, auth, loginId]);
 
   // A restored sign-in picks up where it left off.
   useEffect(() => {
@@ -257,7 +263,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     engineRef.current.stop();
-    engineRef.current.clearStorage();
     await auth?.signOut();
     setEngine(idle);
   }, [auth]);
@@ -265,6 +270,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const changePassword = useCallback(async (password: string) => {
     await auth?.changePassword(password);
   }, [auth]);
+
+  const setLogin = useCallback(
+    async (email: string, password: string | null, isAdmin: boolean) => {
+      if (auth) await adminSetLogin(auth, email, password, isAdmin);
+    },
+    [auth]
+  );
+
+  const removeLogin = useCallback(
+    async (email: string) => {
+      if (auth) await adminRemoveLogin(auth, email);
+    },
+    [auth]
+  );
 
   const syncNow = useCallback(() => engineRef.current.sync(), []);
 
@@ -282,9 +301,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       signIn,
       signOut,
       changePassword,
+      setLogin,
+      removeLogin,
       syncNow,
     }),
-    [mode, checked, session, status, live, signIn, signOut, changePassword, syncNow]
+    [mode, checked, session, status, live, signIn, signOut, changePassword, setLogin, removeLogin, syncNow]
   );
 
   return (

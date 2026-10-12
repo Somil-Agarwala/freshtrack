@@ -10,7 +10,7 @@ import type { UserRole } from "@/types";
  *   Admin                  additionally: recording factory payments,
  *                          final say on godown entries, deleting, prices
  *                          and master data, the owner dashboard and
- *                          exports, users and PINs.
+ *                          exports, users and their logins.
  */
 export type Action =
   | "pickupCount" // log pickups, count bags, log godown damage
@@ -22,7 +22,7 @@ export type Action =
   | "delete" // delete pickups or entries
   | "editMaster" // edit companies, product prices, parties
   | "ownerView" // owner dashboard, detailed reports, Excel exports
-  | "manageUsers"; // add users, reset PINs
+  | "manageUsers"; // add users, give them logins and new passwords
 
 const PERMISSIONS: Record<UserRole, Action[]> = {
   admin: ["pickupCount", "tieSend", "addParty", "addProduct", "recordPayment", "reviewGodown", "delete", "editMaster", "ownerView", "manageUsers"],

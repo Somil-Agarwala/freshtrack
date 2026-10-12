@@ -113,10 +113,10 @@ export function DesktopHeader() {
               <div className="absolute right-0 top-12 z-50 w-56 rounded-2xl border border-line bg-surface p-1.5 shadow-xl">
                 <p className="px-3 pb-1 pt-2 text-sm text-ink-dim">{user && t(ROLE_LABELS[user.role].hi, ROLE_LABELS[user.role].en)}</p>
                 <Link href="/settings" onClick={() => setAccountOpen(false)} className="block rounded-xl px-3 py-2.5 font-semibold hover:bg-elevated">
-                  {t("सेटिंग और PIN", "Settings & PIN")}
+                  {t("सेटिंग और पासवर्ड", "Settings & password")}
                 </Link>
                 <button type="button" onClick={signOut} className="block w-full rounded-xl px-3 py-2.5 text-left font-semibold text-danger-soft hover:bg-elevated">
-                  {t("यूज़र बदलें / बाहर", "Switch user / sign out")}
+                  {t("लॉग आउट", "Log out")}
                 </button>
               </div>
             </>

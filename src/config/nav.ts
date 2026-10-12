@@ -61,8 +61,8 @@ export const moreSections: { hi: string; en: string; links: MoreLink[] }[] = [
     hi: "एडमिन",
     en: "Admin",
     links: [
-      { href: "/users", hi: "यूज़र, रोल और PIN", en: "Users, roles & PINs" },
-      { href: "/settings", hi: "सेटिंग और मेरा PIN", en: "Settings & my PIN" },
+      { href: "/users", hi: "यूज़र, रोल और पासवर्ड", en: "Users, roles & passwords" },
+      { href: "/settings", hi: "सेटिंग और मेरा पासवर्ड", en: "Settings & my password" },
     ],
   },
 ];

@@ -6,7 +6,7 @@ import { showsBottomNav } from "@/config/nav";
 import { useLang } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
 import { useSync } from "@/lib/store";
-import { BusinessLogin, SyncLoading, SyncPill, SyncProblem } from "@/components/account/cloud-screens";
+import { LoginScreen, NoProfile, SyncLoading, SyncPill, SyncProblem } from "@/components/account/cloud-screens";
 import { SignInScreen } from "@/components/account/sign-in-screen";
 import { BigLink, Screen, ScreenBody } from "@/components/ft/screen";
 import { LockIcon } from "@/components/ft/icons";
@@ -30,17 +30,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Nothing until the saved sign-ins are read, so a sign-in screen never
   // flashes up for someone who is already signed in.
   if (!ready || !sync.checked) return <div className="min-h-[100dvh] bg-canvas" />;
-  // The phone joins the business once; then the data loads.
-  if (sync.mode === "cloud" && !sync.account) return <BusinessLogin />;
+  // Each person signs in with their own email; then the data loads.
+  if (sync.mode === "cloud" && !sync.account) return <LoginScreen />;
   if (sync.status.phase === "loading") return <SyncLoading />;
   if (sync.status.phase === "error") return <SyncProblem />;
-  if (!user)
-    return (
-      <>
-        <SyncPill />
-        <SignInScreen />
-      </>
-    );
+  if (!user) return sync.mode === "cloud" ? <NoProfile /> : <SignInScreen />;
 
   const vars = {
     // Footers and sheets stack on top of whatever is fixed at the bottom.

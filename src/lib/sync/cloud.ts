@@ -191,34 +191,52 @@ async function errorOf(res: Response): Promise<SyncError> {
   if (res.status === 401 || body.code === "PGRST301" || body.code === "PGRST303") return new SyncError("auth", body.message ?? "not signed in");
   if (res.status === 403 || body.code === "42501") return new SyncError("forbidden", body.message ?? "no access");
   if (res.status === 404 || body.code === "PGRST202" || body.code === "42P01") return new SyncError("setup", body.message ?? "database not set up");
+  if (body.code === "22023") return new SyncError("invalid", body.message ?? "not accepted");
   return new SyncError("server", body.message ?? `error ${res.status}`);
+}
+
+/** Calls a database function as the signed-in person; an expired token is refreshed once. */
+export async function rpc<T>(auth: CloudAuth, fn: string, args: object): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const token = await auth.token();
+    if (!token) throw new SyncError("auth", "not signed in");
+    const res = await call(`/rest/v1/rpc/${fn}`, { method: "POST", token, body: JSON.stringify(args) });
+    if (res.ok) {
+      const text = await res.text();
+      return (text ? JSON.parse(text) : null) as T;
+    }
+    const err = await errorOf(res);
+    if (err.kind === "auth" && attempt === 0) {
+      await auth.refresh();
+      continue;
+    }
+    throw err;
+  }
+  throw new SyncError("auth", "not signed in");
 }
 
 export class CloudTransport implements Transport {
   constructor(private readonly auth: CloudAuth) {}
 
-  private async rpc<T>(fn: string, args: object): Promise<T> {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const token = await this.auth.token();
-      if (!token) throw new SyncError("auth", "not signed in");
-      const res = await call(`/rest/v1/rpc/${fn}`, { method: "POST", token, body: JSON.stringify(args) });
-      if (res.ok) return (await res.json()) as T;
-      const err = await errorOf(res);
-      // An expired token is refreshed once and the call repeated.
-      if (err.kind === "auth" && attempt === 0) {
-        await this.auth.refresh();
-        continue;
-      }
-      throw err;
-    }
-    throw new SyncError("auth", "not signed in");
-  }
-
   pull(since: number) {
-    return this.rpc<{ rev: number; rows: Row[] }>("ft_pull", { since });
+    return rpc<{ rev: number; rows: Row[] }>(this.auth, "ft_pull", { since });
   }
 
   commit(baseRev: number, changes: Row[], opIds: string[], actor?: string) {
-    return this.rpc<{ ok: boolean; rev: number; applied?: string[] }>("ft_commit", { base_rev: baseRev, changes, op_ids: opIds, actor: actor ?? null });
+    return rpc<{ ok: boolean; rev: number; applied?: string[] }>(this.auth, "ft_commit", { base_rev: baseRev, changes, op_ids: opIds, actor: actor ?? null });
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Logins (admin only; the database checks)                             */
+/* ------------------------------------------------------------------ */
+
+/** Adds a person's login, or gives it a new password (null keeps the old one). */
+export function adminSetLogin(auth: CloudAuth, email: string, password: string | null, isAdmin: boolean) {
+  return rpc<null>(auth, "ft_admin_set_login", { login_email: email.trim().toLowerCase(), login_password: password, is_admin: isAdmin });
+}
+
+/** Stops a login from opening FreshTrack and signs it out everywhere. */
+export function adminRemoveLogin(auth: CloudAuth, email: string) {
+  return rpc<null>(auth, "ft_admin_remove_login", { login_email: email.trim().toLowerCase() });
 }
