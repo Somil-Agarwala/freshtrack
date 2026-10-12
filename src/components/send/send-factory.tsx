@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { daysSince, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { BAG_CAPACITY, mrpBreakdown, partySharesForBags, readyBags, sumValue } from "@/lib/pipeline";
+import { BAG_CAPACITY, OWN_GODOWN, mrpBreakdown, partySharesForBags, readyBags, sumValue } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -112,7 +112,7 @@ export function SendFactory() {
                   <div className="flex flex-col divide-y divide-line rounded-2xl bg-surface px-3.5">
                     {shares.map((s) => (
                       <div key={s.distributorId} className="flex items-center justify-between gap-2 py-2.5 text-[15px]">
-                        <span className="min-w-0 truncate font-semibold">{distributors.find((d) => d.id === s.distributorId)?.name ?? "—"}</span>
+                        <span className="min-w-0 truncate font-semibold">{s.distributorId === OWN_GODOWN ? t("अपना गोदाम", "Own godown") : distributors.find((d) => d.id === s.distributorId)?.name ?? "—"}</span>
                         <span className="shrink-0 text-ink-dim">
                           {num(s.pieces)} {t("पीस", "pcs")} · <b className="text-ink">{inr(s.value)}</b>
                         </span>

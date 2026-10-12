@@ -63,6 +63,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       "Full Bag": bag.isFull ? "Yes" : "Part-filled",
       Status: SORTED_BAG_STATUS_LABELS[bag.status],
       Created: formatDate(bag.createdDate),
+      "Own Godown Pieces": bag.own?.pieces ?? 0,
       Parties: Array.from(new Set(parties)).join(", "),
     };
   });
@@ -97,9 +98,24 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
   });
 
   const includedCollectionIds = new Set(bags.flatMap((b) => b.sourceCollectionIds));
+  const bagIds = new Set(bags.map((b) => b.id));
   const traceability: Row[] = countLines
-    .filter((line) => includedCollectionIds.has(line.collectionId))
+    .filter((line) => includedCollectionIds.has(line.collectionId) || (line.recordId && line.bagId && bagIds.has(line.bagId)))
     .map((line) => {
+      if (line.recordId) {
+        const product = products.find((p) => p.id === line.productId);
+        return {
+          "Collection Bag": "Own godown",
+          Company: companies.find((c) => c.id === line.companyId)?.name ?? "",
+          Party: "Own godown (not a party)",
+          Collected: "",
+          SKU: product?.sku ?? "",
+          Product: product?.name ?? "",
+          "MRP (INR)": line.mrp,
+          Pieces: line.quantity,
+          "Value (INR)": lineValue(line),
+        };
+      }
       const collection = collections.find((c) => c.id === line.collectionId);
       const distributor = distributors.find((d) => d.id === collection?.distributorId);
       const product = products.find((p) => p.id === line.productId);

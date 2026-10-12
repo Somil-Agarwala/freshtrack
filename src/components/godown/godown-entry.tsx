@@ -147,7 +147,15 @@ function Details({ companyId, productId, source }: { companyId: string; productI
   const [loss, setLoss] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
+  const [perCarton, setPerCarton] = useState("");
   const photoInput = useRef<HTMLInputElement>(null);
+
+  // Own-godown damage is claimed from the factory, so it goes into the
+  // numbered 700-piece bags -- which needs it in pieces.
+  const own = source === "own_inventory";
+  const inPieces = ["pieces", "packs", product.unit, `${product.unit}s`].includes(unit);
+  const inCartons = unit === "cartons";
+  const pieces = !own ? 0 : inPieces ? qty : inCartons ? qty * (Number(perCarton) || 0) : 0;
 
   const estimate = qty * product.costPrice;
   const value = loss === null ? estimate : Number(loss) || 0;
@@ -155,11 +163,11 @@ function Details({ companyId, productId, source }: { companyId: string; productI
   const units = useMemo(() => Array.from(new Set([unit, ...UNITS])), [unit]);
   const whoOptions = [...(party ? [party.name] : []), ...WHO, "other"];
   const responsible = who === "other" ? customWho.trim() : who;
-  const ready = !!reason && qty > 0 && (source === "own_inventory" || !!partyId);
+  const ready = !!reason && qty > 0 && (source === "own_inventory" || !!partyId) && !(own && inCartons && !pieces);
 
   function save() {
     if (!ready) return;
-    addRecord({
+    const created = addRecord({
       companyId,
       date,
       source,
@@ -174,8 +182,11 @@ function Details({ companyId, productId, source }: { companyId: string; productI
       responsibleParty: responsible,
       hasPhoto: !!photo,
       notes: notes.trim() || undefined,
+      pieces: pieces || undefined,
     });
-    router.replace(`/godown/done?${new URLSearchParams({ company: companyId, product: productId, qty: String(qty), unit, value: String(value), ...(source === "distributor" ? { source: "party" } : {}) })}`);
+    router.replace(
+      `/godown/done?${new URLSearchParams({ record: created.id, company: companyId, product: productId, qty: String(qty), unit, value: String(value), ...(source === "distributor" ? { source: "party" } : {}) })}`
+    );
   }
 
   return (
@@ -234,6 +245,38 @@ function Details({ companyId, productId, source }: { companyId: string; productI
             ))}
           </div>
         </Field>
+
+        {own && inCartons && (
+          <Field hi="1 कार्टन में कितने पीस?" en="Pieces in one carton?">
+            <input
+              inputMode="numeric"
+              className={inputClass}
+              value={perCarton}
+              onChange={(e) => setPerCarton(e.target.value.replace(/\D/g, "").slice(0, 5))}
+              placeholder={t("जैसे 48", "e.g. 48")}
+            />
+          </Field>
+        )}
+        {own && (
+          <Note
+            tone="godown"
+            icon={<InfoIcon size={22} />}
+            hi={
+              pieces > 0
+                ? `${num(pieces)} पीस फैक्ट्री क्लेम के नंबर वाले बैग में जाएँगे — सेव करते ही बैग नंबर दिखेगा।`
+                : inCartons
+                  ? "कार्टन में पीस लिखें, तभी माल फैक्ट्री के बैग में जाएगा।"
+                  : "किलो / लीटर वाला माल फैक्ट्री के बैग में नहीं जाता — पीस या पैक में लिखें।"
+            }
+            en={
+              pieces > 0
+                ? `${num(pieces)} pieces go into the numbered factory claim bags — the bag number shows when you save.`
+                : inCartons
+                  ? "Enter pieces per carton so the goods can go into a factory bag."
+                  : "Goods in kg or litres do not go into factory bags — enter pieces or packs."
+            }
+          />
+        )}
 
         <Field hi="क्या हुआ?" en="What happened?">
           <ChoiceGrid
@@ -321,7 +364,13 @@ function Details({ companyId, productId, source }: { companyId: string; productI
       <ScreenFooter>
         <BigButton tone="godown" onClick={save} disabled={!ready}>
           <CheckIcon />
-          {ready ? t(`सेव करें · ${inr(value)} नुकसान`, `Save · ${inr(value)} loss`) : !reason ? t("पहले वजह चुनें", "Pick what happened") : t("पार्टी चुनें", "Pick the party")}
+          {ready
+            ? t(`सेव करें · ${inr(value)} नुकसान`, `Save · ${inr(value)} loss`)
+            : !reason
+              ? t("पहले वजह चुनें", "Pick what happened")
+              : own && inCartons && !pieces
+                ? t("कार्टन में पीस लिखें", "Enter pieces per carton")
+                : t("पार्टी चुनें", "Pick the party")}
         </BigButton>
       </ScreenFooter>
     </Screen>

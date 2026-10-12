@@ -77,7 +77,12 @@ interface StoreValue {
   createDispatch: (bagIds: string[]) => Dispatch | null;
   recordSettlement: (dispatchId: string, receivedValue: number) => void;
   deleteDispatches: (ids: string[]) => void;
-  addRecord: (record: Omit<DamageRecord, "id">) => void;
+  /**
+   * Logs a godown entry. Own-godown damage counted in pieces goes straight
+   * into the numbered claim bags, like a counted pickup.
+   */
+  addRecord: (record: Omit<DamageRecord, "id">) => DamageRecord;
+  /** Deletes entries and takes their pieces back out of the bags (not once sent). */
   deleteRecords: (ids: string[]) => void;
 }
 
@@ -338,14 +343,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDispatches((prev) => prev.filter((d) => !idSet.has(d.id)));
   }, []);
 
-  const addRecord = useCallback((record: Omit<DamageRecord, "id">) => {
-    setRecords((prev) => [{ ...record, id: `r-${Date.now()}`, loggedBy: actorRef.current }, ...prev]);
-  }, []);
+  const addRecord = useCallback(
+    (record: Omit<DamageRecord, "id">) => {
+      const created: DamageRecord = { ...record, id: `r-${Date.now()}`, loggedBy: actorRef.current };
+      setRecords((prev) => [created, ...prev]);
 
-  const deleteRecords = useCallback((ids: string[]) => {
-    const idSet = new Set(ids);
-    setRecords((prev) => prev.filter((r) => !idSet.has(r.id)));
-  }, []);
+      // Damage in our own godown is claimed from the factory like any other,
+      // so its pieces go into the same numbered bags -- tagged as our own.
+      const product = products.find((p) => p.id === record.productId);
+      if (record.source === "own_inventory" && product && (record.pieces ?? 0) > 0) {
+        const line: CountLine = {
+          id: `gl-${created.id}`,
+          collectionId: `godown:${created.id}`,
+          recordId: created.id,
+          companyId: record.companyId,
+          productId: product.id,
+          mrp: product.mrp,
+          quantity: record.pieces!,
+          rate: product.claimRate,
+          packed: false,
+        };
+        const { lines: placed, bags } = putIntoBags([line], sortedBags, companies, today(), sequence, line.collectionId);
+        const allLines = [...countLines, ...placed];
+        const before = new Map(sortedBags.map((b) => [b.id, b.status]));
+        setCountLines(allLines);
+        setSortedBags(refreshBags(bags, allLines).map((b) => (b.status === "ready" && before.get(b.id) !== "ready" ? { ...b, tiedBy: actorRef.current } : b)));
+      }
+      return created;
+    },
+    [products, sortedBags, countLines, companies, sequence]
+  );
+
+  const deleteRecords = useCallback(
+    (ids: string[]) => {
+      const sent = new Set(sortedBags.filter((b) => b.status === "dispatched").map((b) => b.id));
+      // Entries whose pieces have gone to the factory stay, like a sent pickup.
+      const allowed = new Set(ids.filter((id) => !countLines.some((l) => l.recordId === id && l.bagId && sent.has(l.bagId))));
+      if (allowed.size === 0) return;
+      const rest = countLines.filter((l) => !(l.recordId && allowed.has(l.recordId)));
+      setRecords((prev) => prev.filter((r) => !allowed.has(r.id)));
+      if (rest.length !== countLines.length) {
+        setCountLines(rest);
+        setSortedBags(refreshBags(sortedBags, rest));
+      }
+    },
+    [countLines, sortedBags]
+  );
 
   const saveCompany = useCallback((company: Company) => setCompanies((prev) => upsert(prev, company)), []);
   const saveProduct = useCallback((product: Product) => setProducts((prev) => upsert(prev, product)), []);

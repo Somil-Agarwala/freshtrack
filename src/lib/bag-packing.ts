@@ -219,8 +219,15 @@ export function refreshBags(bags: SortedBag[], lines: CountLine[], dropEmpty = t
 
     const byProduct = new Map<string, number>();
     const byCollection = new Map<string, { pieces: number; value: number }>();
+    const own = { pieces: 0, value: 0 };
     inside.forEach((l) => {
       byProduct.set(l.productId, (byProduct.get(l.productId) ?? 0) + l.quantity);
+      // Own-godown damage has no party, so it is kept out of the party split.
+      if (l.recordId) {
+        own.pieces += l.quantity;
+        own.value += lineValue(l);
+        return;
+      }
       const c = byCollection.get(l.collectionId) ?? { pieces: 0, value: 0 };
       byCollection.set(l.collectionId, { pieces: c.pieces + l.quantity, value: c.value + lineValue(l) });
     });
@@ -241,7 +248,8 @@ export function refreshBags(bags: SortedBag[], lines: CountLine[], dropEmpty = t
         items,
         contents,
         sourceCollectionIds: contents.map((c) => c.collectionId),
-        claimValue: Math.round(contents.reduce((s, c) => s + (c.value ?? 0), 0) * 100) / 100,
+        own: own.pieces ? { pieces: own.pieces, value: Math.round(own.value * 100) / 100 } : undefined,
+        claimValue: Math.round((contents.reduce((s, c) => s + (c.value ?? 0), 0) + own.value) * 100) / 100,
       },
     ];
   });

@@ -9,13 +9,13 @@ import { BAG_CAPACITY, NEAR_FULL, bagContents, openBags, readyBags } from "@/lib
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import type { SortedBag } from "@/types";
+import type { CountLine, SortedBag } from "@/types";
 import { MrpCircle } from "@/components/ft/brand";
-import { ChevronRightIcon, LayersIcon, SackIcon, SendIcon } from "@/components/ft/icons";
+import { ChevronRightIcon, LayersIcon, SackIcon, SendIcon, WarehouseIcon } from "@/components/ft/icons";
 import { Pill } from "@/components/ft/kit";
 import { BigButton, BigLink, CompanyTabs, ListHeader, PileBar, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
 import { Dialog } from "@/components/ui/dialog";
-import { BagNumber } from "@/components/count/sort-guide";
+import { BagNumber } from "@/components/count/bag-directions";
 
 /**
  * Bags in the godown, by company: the open bag of each MRP being filled as
@@ -106,7 +106,13 @@ export function PilesBoard() {
                   <PileBar existing={bag.pieceCount} capacity={BAG_CAPACITY} label={`${bag.pieceCount} of ${BAG_CAPACITY}`} />
                 </div>
                 <div className="mt-2.5 flex items-center justify-between gap-2 text-sm text-ink-dim">
-                  <span className="min-w-0 truncate">{(bag.items ?? []).map((i) => `${nameOf(i.productId)} ${num(i.pieces)}`).join(" · ")}</span>
+                  {bag.own?.pieces ? (
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-godown-tint px-2 py-0.5 font-bold text-godown-soft">
+                      <WarehouseIcon size={14} />
+                      {t(`गोदाम ${num(bag.own.pieces)}`, `Godown ${num(bag.own.pieces)}`)}
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate">{(bag.items ?? []).map((i) => `${nameOf(i.productId)} ${num(i.pieces)}`).join(" · ")}</span>
                   <span className="flex shrink-0 items-center gap-0.5 font-bold text-pile-soft">
                     {t("पूरी जानकारी", "Details")}
                     <ChevronRightIcon size={16} />
@@ -141,7 +147,8 @@ export function PilesBoard() {
                             <BagNumber value={b.bagNumber} className="block truncate text-[17px]" />
                             <span className="block truncate text-[13px] text-ink-dim">
                               {num(b.pieceCount)} {t("पीस", "pcs")}
-                              {!b.isFull && ` (${t("आधा", "part")})`} · {(b.items ?? []).map((x) => nameOf(x.productId)).join(", ") || "—"}
+                              {!b.isFull && ` (${t("आधा", "part")})`}
+                              {b.own?.pieces ? ` · ${t(`गोदाम का ${num(b.own.pieces)}`, `${num(b.own.pieces)} own godown`)}` : ""} · {(b.items ?? []).map((x) => nameOf(x.productId)).join(", ") || "—"}
                             </span>
                           </span>
                           <Pill tone={daysSince(b.createdDate) >= 14 ? "danger" : "factory"} className="px-2 py-0.5 text-xs">
@@ -215,6 +222,7 @@ function BagSheet({ bag, partyOf, nameOf, onClose }: { bag: SortedBag; partyOf: 
   const { companies, collections, countLines } = useStore();
   const company = companies.find((c) => c.id === bag.companyId);
   const parts = bagContents(bag, countLines);
+  const partyPieces = parts.reduce((s, p) => s + p.pieces, 0);
 
   return (
     <Dialog
@@ -235,9 +243,13 @@ function BagSheet({ bag, partyOf, nameOf, onClose }: { bag: SortedBag; partyOf: 
         ))}
       </ul>
 
-      <p className="mb-2 text-[15px] font-bold">
-        {t("किन पिकअप बैगों से आया", "From which pickup bags")} <span className="font-medium text-ink-faint">· {parts.length}</span>
-      </p>
+      <OwnGodownBlock bag={bag} countLines={countLines} nameOf={nameOf} />
+
+      {parts.length > 0 && (
+        <p className="mb-2 text-[15px] font-bold">
+          {t("पार्टियों का माल", "Parties' goods")} <span className="font-medium text-ink-faint">· {num(partyPieces)} {t("पीस", "pcs")} · {parts.length} {t("पिकअप बैग", "pickup bags")}</span>
+        </p>
+      )}
       <div className="flex flex-col gap-2">
         {parts.map((part) => {
           const pickup = collections.find((c) => c.id === part.collectionId);
@@ -255,5 +267,40 @@ function BagSheet({ bag, partyOf, nameOf, onClose }: { bag: SortedBag; partyOf: 
         })}
       </div>
     </Dialog>
+  );
+}
+
+/**
+ * Pieces in a bag that were damaged in our own godown, shown apart from the
+ * parties' goods, item by item, each linked to its godown entry.
+ */
+export function OwnGodownBlock({ bag, countLines, nameOf }: { bag: SortedBag; countLines: CountLine[]; nameOf: (id: string) => string }) {
+  const { t } = useLang();
+  if (!bag.own?.pieces) return null;
+  const lines = countLines.filter((l) => l.bagId === bag.id && l.recordId);
+  const items = Array.from(lines.reduce((m, l) => m.set(l.productId, (m.get(l.productId) ?? 0) + l.quantity), new Map<string, number>())).sort((a, b) => b[1] - a[1]);
+  return (
+    <div className="mb-4 rounded-2xl border border-godown-line bg-godown-panel p-3">
+      <div className="flex items-center gap-2.5">
+        <WarehouseIcon size={22} className="shrink-0 text-godown" />
+        <span className="min-w-0 flex-1 font-bold leading-tight">
+          {t("अपने गोदाम का नुकसान", "Damaged in our own godown")}
+          <span className="block text-[13px] font-medium text-godown-mute">{t("किसी पार्टी का नहीं", "Not from any party")}</span>
+        </span>
+        <b className="shrink-0 font-display text-xl text-godown">
+          {num(bag.own.pieces)} {t("पीस", "pcs")}
+        </b>
+      </div>
+      <ul className="mt-2 flex flex-col divide-y divide-godown-line">
+        {items.map(([productId, pieces]) => (
+          <li key={productId}>
+            <Link href="/godown" className="flex items-center justify-between gap-3 py-1.5 text-[15px]">
+              <span className="min-w-0 truncate">{nameOf(productId)}</span>
+              <b>{num(pieces)}</b>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

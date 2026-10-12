@@ -94,7 +94,9 @@ export function quarterStart(date = today()) {
 }
 
 /** Average value of one counted piece, to estimate uncounted bags. */
-export function pieceEstimates(countLines: CountLine[], collections: CollectionBag[]) {
+export function pieceEstimates(allLines: CountLine[], collections: CollectionBag[]) {
+  // Pickups only: own-godown damage says nothing about what a pickup bag holds.
+  const countLines = allLines.filter((l) => !l.recordId);
   const pieces = countLines.reduce((s, l) => s + l.quantity, 0);
   const value = countLines.reduce((s, l) => s + lineValue(l), 0);
   const counted = collections.filter((c) => c.status !== "uncounted").length;
@@ -157,10 +159,24 @@ export function bagContents(bag: SortedBag, countLines: CountLine[]): BagContent
   });
 }
 
-/** Whose goods are in these bags, by party, largest claim first. */
+/**
+ * The share that stands for damage in our own godown. It sits next to the
+ * parties in a run's split, so the factory's payment covers it too, but it
+ * is not a party.
+ */
+export const OWN_GODOWN = "own-godown";
+
+/** Whose goods are in these bags, by party (and our own godown), largest claim first. */
 export function partySharesForBags(bags: SortedBag[], collections: CollectionBag[], countLines: CountLine[]): PartyShare[] {
   const party = new Map(collections.map((c) => [c.id, c.distributorId]));
   const shares = new Map<string, PartyShare>();
+  bags.forEach((bag) => {
+    if (!bag.own?.pieces) return;
+    const share = shares.get(OWN_GODOWN) ?? { distributorId: OWN_GODOWN, pieces: 0, value: 0 };
+    share.pieces += bag.own.pieces;
+    share.value += bag.own.value;
+    shares.set(OWN_GODOWN, share);
+  });
   bags.forEach((bag) =>
     bagContents(bag, countLines).forEach((part) => {
       const distributorId = party.get(part.collectionId);

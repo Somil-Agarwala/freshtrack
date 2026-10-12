@@ -172,9 +172,16 @@ export function GodownList() {
 
 function RecordSheet({ record, onClose, onStatus, onDelete }: { record: DamageRecord; onClose: () => void; onStatus: (s: ResolutionStatus) => void; onDelete: () => void }) {
   const { t, lang } = useLang();
-  const { products, companies, distributors } = useStore();
+  const { products, companies, distributors, countLines, sortedBags } = useStore();
   const [confirm, setConfirm] = useState(false);
   const { can } = useSession();
+  // The numbered factory bags this entry's pieces went into.
+  const lines = countLines.filter((l) => l.recordId === record.id);
+  const bags = Array.from(new Set(lines.map((l) => l.bagId)))
+    .map((id) => sortedBags.find((b) => b.id === id))
+    .filter((b): b is NonNullable<typeof b> => !!b)
+    .map((b) => ({ bag: b, pieces: lines.filter((l) => l.bagId === b.id).reduce((s, l) => s + l.quantity, 0) }));
+  const sent = bags.some(({ bag }) => bag.status === "dispatched");
   const product = products.find((p) => p.id === record.productId);
   const company = companies.find((c) => c.id === record.companyId);
   const party = distributors.find((d) => d.id === record.distributorId);
@@ -218,6 +225,28 @@ function RecordSheet({ record, onClose, onStatus, onDelete }: { record: DamageRe
       </dl>
       {record.notes && <p className="mt-3 rounded-2xl bg-elevated p-3.5 text-[15px] text-ink-soft">{record.notes}</p>}
 
+      {bags.length > 0 && (
+        <>
+          <p className="mb-2 mt-4 text-[15px] font-bold">{t("फैक्ट्री क्लेम के किस बैग में गया", "Which factory claim bag it went into")}</p>
+          <div className="flex flex-col divide-y divide-line rounded-2xl bg-elevated px-3">
+            {bags.map(({ bag, pieces }) => (
+              <Link key={bag.id} href={`/sorted-bags?q=${bag.bagNumber}`} className="flex items-center gap-2.5 py-2.5">
+                <span className="min-w-0 flex-1 truncate font-mono text-[15px] font-semibold">{bag.bagNumber}</span>
+                <span className="text-sm text-ink-dim">
+                  {num(pieces)} {t("पीस", "pcs")}
+                </span>
+                <Pill tone={bag.status === "open" ? "pile" : bag.status === "ready" ? "factory" : "money"} className="px-2 py-0.5 text-xs">
+                  {bag.status === "open" ? t("भर रहा", "Filling") : bag.status === "ready" ? t("बँधा", "Tied") : t("भेजा", "Sent")}
+                </Pill>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+      {record.source === "own_inventory" && bags.length === 0 && (
+        <p className="mt-4 rounded-2xl bg-elevated p-3.5 text-[15px] text-ink-dim">{t("यह माल फैक्ट्री के बैग में नहीं गया (पीस में नहीं लिखा था)", "Not in a factory bag (not entered in pieces)")}</p>
+      )}
+
       {can("reviewGodown") ? (
         <>
       <p className="mb-2 mt-4 text-[15px] font-bold">{t("अब क्या स्थिति है?", "Where does it stand?")}</p>
@@ -235,7 +264,7 @@ function RecordSheet({ record, onClose, onStatus, onDelete }: { record: DamageRe
         </p>
       )}
 
-      {!confirm && can("delete") && (
+      {!confirm && can("delete") && !sent && (
         <button type="button" onClick={() => setConfirm(true)} className={cn("mt-4 flex items-center gap-2 text-[15px] font-bold text-danger-soft")}>
           <TrashIcon size={18} />
           {t("यह एंट्री हटाएँ", "Delete this entry")}

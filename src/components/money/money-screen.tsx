@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { shareOnWhatsApp, useFlash } from "@/lib/device";
 import { daysBetween, daysSince, fullDate, initials, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { STALE_CLAIM_DAYS, dispatchShares, isAwaitingPayment, partyAccounts, shortfall, splitDispatch, type PartyAccount } from "@/lib/pipeline";
+import { OWN_GODOWN, STALE_CLAIM_DAYS, dispatchShares, isAwaitingPayment, partyAccounts, shortfall, splitDispatch, type PartyAccount } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ export function MoneyScreen() {
   const pendingValue = pending.reduce((s, d) => s + d.claimedValue, 0);
   const sharesOf = (d: Dispatch) => dispatchShares(d, sortedBags, collections, countLines);
   const accounts = useMemo(() => partyAccounts(dispatches, sortedBags, collections, countLines), [dispatches, sortedBags, collections, countLines]);
-  const partyName = (id: string) => distributors.find((d) => d.id === id)?.name ?? "—";
+  const partyName = (id: string) => (id === OWN_GODOWN ? t("अपना गोदाम", "Own godown") : distributors.find((d) => d.id === id)?.name ?? "—");
 
   const setView = (next: View) => router.replace(next === "runs" ? pathname : `${pathname}?view=parties`, { scroll: false });
 
@@ -379,7 +379,7 @@ function PartyList({ accounts, distributors, onOpen }: { accounts: PartyAccount[
     <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
       {accounts.map((a) => {
         const party = distributors.find((d) => d.id === a.distributorId);
-        const name = party?.name ?? "—";
+        const name = a.distributorId === OWN_GODOWN ? t("अपना गोदाम", "Own godown") : party?.name ?? "—";
         const tone = partyTone(name);
         return (
           <button
@@ -436,7 +436,7 @@ function Mini({ label, value, tone }: { label: string; value: string; tone?: str
 function PartySheet({ account, party, onClose }: { account: PartyAccount; party?: Distributor; onClose: () => void }) {
   const { t, lang } = useLang();
   const { companies } = useStore();
-  const name = party?.name ?? "—";
+  const name = account.distributorId === OWN_GODOWN ? t("अपना गोदाम", "Own godown") : party?.name ?? "—";
 
   function share() {
     const lines = [

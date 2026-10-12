@@ -7,7 +7,7 @@ import { shareOnWhatsApp, useFlash } from "@/lib/device";
 import { exportDispatch } from "@/lib/export";
 import { daysBetween, daysSince, fullDate, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { dispatchShares, isAwaitingPayment, shortfall, splitDispatch } from "@/lib/pipeline";
+import { OWN_GODOWN, dispatchShares, isAwaitingPayment, shortfall, splitDispatch } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { MrpCircle } from "@/components/ft/brand";
@@ -45,7 +45,7 @@ export function RunDetail({ dispatchId }: { dispatchId: string }) {
   const shares = dispatchShares(d, sortedBags, collections, countLines);
   const split = splitDispatch(d, shares);
   const owed = isAwaitingPayment(d);
-  const partyName = (id: string) => distributors.find((x) => x.id === id)?.name ?? "—";
+  const partyName = (id: string) => (id === OWN_GODOWN ? t("अपना गोदाम", "Own godown") : distributors.find((x) => x.id === id)?.name ?? "—");
 
   function share() {
     shareOnWhatsApp(

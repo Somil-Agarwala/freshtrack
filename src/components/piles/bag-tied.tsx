@@ -25,6 +25,7 @@ export function BagTied() {
           .filter((n): n is string => !!n)
       )
     );
+    if (bag.own?.pieces) names.unshift(t("अपना गोदाम", "Own godown"));
     return names.length ? `${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ""}` : "—";
   };
   const ids = (useSearchParams().get("ids") ?? "").split(",").filter(Boolean);

@@ -80,6 +80,12 @@ export interface DamageRecord {
   notes?: string;
   /** User who logged the entry. */
   loggedBy?: string;
+  /**
+   * Pieces of own-godown damage put into the factory claim bags. Equal to
+   * the quantity when it is counted in pieces or packs; cartons are turned
+   * into pieces at entry; kg and litres are not bagged.
+   */
+  pieces?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -127,6 +133,12 @@ export interface CountLine {
   rate?: number;
   /** Set once these pieces have been put into a numbered bag. */
   packed: boolean;
+  /**
+   * Set when these pieces are damage in our own godown (a godown entry)
+   * rather than goods picked up from a party. collectionId is then
+   * "godown:<record id>" and there is no party.
+   */
+  recordId?: string;
   /**
    * The numbered bag these pieces were put into, decided the moment the
    * count is saved. A line that fills one bag and spills into the next is
@@ -177,7 +189,12 @@ export interface SortedBag {
   tiedBy?: string;
   /** Claim value of the bag at the pieces' claim rates. Unset = pieces × MRP. */
   claimValue?: number;
-  /** The pickup whose count opened this bag (so its screen can say "new bag"). */
+  /**
+   * Pieces in the bag that were damaged in our own godown, and their claim
+   * value. Kept apart from `contents`, which is the parties' goods only.
+   */
+  own?: { pieces: number; value: number };
+  /** The pickup (or "godown:<record id>") whose pieces opened this bag, so its screen can say "new bag". */
   openedFor?: string;
   /** Closed part-filled on purpose before a factory run; stays closed. */
   closedEarly?: boolean;

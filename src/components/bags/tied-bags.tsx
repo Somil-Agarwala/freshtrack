@@ -14,6 +14,7 @@ import { Chips, EmptyCard, ExportButton, Pill, SearchBox } from "@/components/ft
 import { PrintLabel, PrintSheet } from "@/components/ft/print-sheet";
 import { BigButton, BigLink, CompanyTabs, ListHeader, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
 import { Dialog } from "@/components/ui/dialog";
+import { OwnGodownBlock } from "@/components/piles/piles-board";
 
 type Filter = "open" | "ready" | "dispatched" | "all";
 
@@ -26,14 +27,17 @@ export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
   const [query, setQuery] = useState(initialSearch);
   const [open, setOpen] = useState<string | null>(null);
 
-  const partyNames = (bag: SortedBag) =>
-    Array.from(
+  // Whose goods are inside; our own godown's damage is named first.
+  const partyNames = (bag: SortedBag) => [
+    ...(bag.own?.pieces ? [t(`अपना गोदाम (${num(bag.own.pieces)})`, `Own godown (${num(bag.own.pieces)})`)] : []),
+    ...Array.from(
       new Set(
         bagContents(bag, countLines)
           .map((c) => distributors.find((d) => d.id === collections.find((x) => x.id === c.collectionId)?.distributorId)?.name)
           .filter((n): n is string => !!n)
       )
-    );
+    ),
+  ];
 
   const q = query.trim().toLowerCase();
   const list = useMemo(
@@ -168,8 +172,12 @@ function BagSheet({ bag, partyNames, onClose }: { bag: SortedBag; partyNames: st
         </>
       )}
 
+      <div className="mt-4">
+        <OwnGodownBlock bag={bag} countLines={countLines} nameOf={(id) => products.find((p) => p.id === id)?.name ?? "—"} />
+      </div>
+
       <p className="mb-2 mt-4 text-[15px] font-bold">
-        {t("किसका माल अंदर है", "Whose goods are inside")} <span className="font-medium text-ink-faint">· {partyNames.length}</span>
+        {t("पार्टियों का माल", "Parties' goods")} <span className="font-medium text-ink-faint">· {parts.length}</span>
       </p>
       <div className="flex flex-col gap-2">
         {parts.map((part) => {

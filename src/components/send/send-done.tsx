@@ -6,7 +6,7 @@ import Link from "next/link";
 import { shareOnWhatsApp } from "@/lib/device";
 import { fullDate, inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { dispatchShares } from "@/lib/pipeline";
+import { OWN_GODOWN, dispatchShares } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import type { Company, Dispatch, SortedBag } from "@/types";
 import { CompanyAvatar } from "@/components/ft/brand";
@@ -89,7 +89,7 @@ export function SendDone({ dispatchId }: { dispatchId: string }) {
             <div className="mt-1 flex flex-col divide-y divide-line">
               {shares.map((s) => (
                 <div key={s.distributorId} className="flex items-center justify-between gap-2 py-2 text-[15px]">
-                  <span className="min-w-0 truncate">{distributors.find((d) => d.id === s.distributorId)?.name ?? "—"}</span>
+                  <span className="min-w-0 truncate">{s.distributorId === OWN_GODOWN ? t("अपना गोदाम", "Own godown") : distributors.find((d) => d.id === s.distributorId)?.name ?? "—"}</span>
                   <span className="shrink-0 text-ink-dim">
                     {num(s.pieces)} {t("पीस", "pcs")} · <b className="text-ink">{inr(s.value)}</b>
                   </span>
