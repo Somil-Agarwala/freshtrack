@@ -65,8 +65,8 @@ export function UsersScreen() {
         </div>
         <p className="mx-0.5 text-sm text-ink-faint">
           {t(
-            "PIN इस फ़ोन/ब्राउज़र में जाँचा जाता है — यह बताता है कौन काम कर रहा है। पक्की सुरक्षा डेटाबेस वाले लॉगिन से आएगी।",
-            "PINs are checked in the browser: they say who is working. Proper security comes with database sign-in."
+            "डेटा की सुरक्षा खाते के पासवर्ड से है, जो हर फ़ोन पर एक बार डाला जाता है। PIN सिर्फ़ यह बताता है कि कौन काम कर रहा है।",
+            "The account password, entered once per phone, protects the data. The PIN only says who is working."
           )}
         </p>
       </ScreenBody>

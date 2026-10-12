@@ -38,7 +38,8 @@ export function PilesBoard() {
   const fallback = [...withBags].sort((a, b) => openCount(b.id) - openCount(a.id))[0]?.id ?? "";
   const requested = params.get("company");
   const [chosen, setChosen] = useState<string | null>(null);
-  const companyId = chosen ?? (requested && withBags.some((c) => c.id === requested) ? requested : fallback);
+  // A company picked earlier whose bags have all gone falls back too.
+  const companyId = chosen && withBags.some((c) => c.id === chosen) ? chosen : requested && withBags.some((c) => c.id === requested) ? requested : fallback;
   const company = companies.find((c) => c.id === companyId);
 
   const filling = open.filter((b) => b.companyId === companyId);

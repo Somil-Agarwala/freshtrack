@@ -10,9 +10,9 @@ import type { UserAccount } from "@/types";
  * Who is using the app on this device. The choice is remembered, so a
  * godown phone stays signed in as Nikhil until someone taps "switch user".
  *
- * The PIN is checked in the browser. That tells the app who is working
- * and keeps casual mistakes out of admin screens, but anyone with the
- * code could get past it; real protection comes with Supabase auth.
+ * The PIN is checked on the phone. It tells the app who is working and
+ * keeps casual mistakes out of admin screens; the data itself is protected
+ * by the business account each phone signs in with once (lib/sync/cloud.ts).
  */
 const KEY = "freshtrack.session";
 

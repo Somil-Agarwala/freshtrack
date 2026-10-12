@@ -233,6 +233,7 @@ export function CompanyTabs({
     <div role="tablist" aria-label="Company" className="no-scrollbar -mx-4 mt-3.5 flex gap-2 overflow-x-auto px-4">
       {all !== undefined && (
         <button
+          type="button"
           role="tab"
           aria-selected={value === "all"}
           onClick={() => onChange("all")}
@@ -249,6 +250,7 @@ export function CompanyTabs({
         return (
           <button
             key={company.id}
+            type="button"
             role="tab"
             aria-selected={selected}
             aria-label={company.name}

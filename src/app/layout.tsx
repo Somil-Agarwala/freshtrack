@@ -13,9 +13,9 @@ const mukta = Mukta({ subsets: ["latin", "devanagari"], weight: ["400", "500", "
 const baloo = Baloo_2({ subsets: ["latin", "devanagari"], weight: ["600", "700", "800"], variable: "--font-baloo" });
 const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-plex-mono" });
 
-// Rendered per request: every screen counts days from today, so a page
-// prerendered at build time would show stale ages the next morning.
-export const dynamic = "force-dynamic";
+// Pages are static and load instantly from the CDN. Nothing is drawn on
+// the server: the app shell waits for the phone's sign-in and data, so
+// dates and ages are always worked out on the phone, today.
 
 export const metadata: Metadata = {
   title: `${siteConfig.name} | ${siteConfig.description}`,

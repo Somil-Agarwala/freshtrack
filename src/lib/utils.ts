@@ -25,8 +25,10 @@ export function formatDate(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
+/** Today's date on this phone's clock, YYYY-MM-DD. (Not UTC: in India that is still yesterday until 5:30 am.) */
 export function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function pluralize(count: number, singular: string, plural?: string): string {

@@ -38,6 +38,10 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
   }
 
   const company = companies.find((c) => c.id === bag.companyId);
+  // One photo per pickup, kept on its first bag. Old in-browser (blob:) photos cannot be shown.
+  const batch = bag.id.slice(0, bag.id.lastIndexOf("-") + 1);
+  const shown = (url?: string) => (url && !url.startsWith("blob:") ? url : undefined);
+  const photo = shown(bag.photoUrl) ?? shown(collections.find((c) => c.id !== bag.id && batch && c.id.startsWith(batch) && shown(c.photoUrl))?.photoUrl);
   const party = distributors.find((d) => d.id === bag.distributorId);
   const lines = countLines.filter((l) => l.collectionId === bag.id);
   // Lines split when a bag fills part-way, so merge them back per item.
@@ -101,9 +105,9 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
           <Info label={t("गिने पीस", "Counted")} value={pieces ? `${num(pieces)} · ${inr(value)}` : "—"} />
         </div>
         {bag.notes && <p className="rounded-2xl bg-surface p-3.5 text-[15px] text-ink-soft">{bag.notes}</p>}
-        {bag.photoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- local object URL
-          <img src={bag.photoUrl} alt={t("पिकअप की फोटो", "Pickup photo")} className="max-h-64 w-full rounded-2xl object-cover" />
+        {photo && (
+          // eslint-disable-next-line @next/next/no-img-element -- small data URL saved with the pickup
+          <img src={photo} alt={t("पिकअप की फोटो", "Pickup photo")} className="max-h-64 w-full rounded-2xl object-cover" />
         )}
 
         {items.length > 0 && (

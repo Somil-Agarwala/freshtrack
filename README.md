@@ -1,12 +1,29 @@
 # FreshTrack
 
 Damage collection, counting, bag packing and factory claims for an FMCG
-distribution business. Built as a multi-file Next.js app that drops
-straight into GitHub and Vercel, with Supabase planned for the backend.
+distribution business. A multi-file Next.js app on Vercel, with its data
+in Supabase and shared live by every phone and browser of the business.
 
-This build is **UI and logic only**: it runs on realistic mock data in
-`src/lib/mock-data.ts`, held in a shared in-memory store. Nothing is
-persisted yet, so a page refresh resets state.
+## Shared data (Supabase)
+
+- **One copy for everyone.** Each record (pickup, counted line, numbered
+  bag, dispatch, godown entry, product, party, user) is a row of
+  `ft_rows`. The SQL is in `supabase/migrations/`.
+- **Changes are operations.** `src/lib/sync/ops.ts` holds every change as a
+  pure function. A change shows on the phone at once and is saved in the
+  background by `src/lib/sync/engine.ts`.
+- **No clashes.** `ft_commit` accepts a batch only if the phone has seen
+  the latest revision; otherwise the phone pulls, redoes its change on
+  top and resends. Two phones can never issue the same bag number or
+  overfill one bag. Resent changes are recognised by id, never doubled.
+- **Live and offline.** Phones hear about new saves over Supabase Realtime
+  (with polling as a backup). Without internet, changes wait on the phone
+  (localStorage) and are saved when it is back.
+- **Access.** Each phone is signed in once with the business account
+  (Supabase Auth, email + password); only users listed in `ft_members`
+  can read or write. Staff then pick their name and 4-digit PIN.
+- `NEXT_PUBLIC_FRESHTRACK_LOCAL=1` runs a copy that keeps everything on
+  the device, for demos.
 
 ## The workflow this models
 

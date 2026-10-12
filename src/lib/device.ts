@@ -101,3 +101,30 @@ export function useCanSpeak() {
   useEffect(() => setCan(canSpeak()), []);
   return can;
 }
+
+/**
+ * A phone photo made small enough to save with the pickup and show on
+ * every phone: at most `max` pixels on its long side, as a JPEG data URL
+ * (about 30-60 KB). Falls back to null if the browser cannot read it.
+ */
+export async function shrinkPhoto(file: File, max = 640, quality = 0.6): Promise<string | null> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

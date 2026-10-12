@@ -7,7 +7,8 @@ import { STOCK_PRODUCTS } from "./data/stock-products";
  * the sign-in accounts. No pickups, counts, bags, dispatches or godown
  * entries -- those are entered through the app.
  *
- * Until the database is connected, a reload returns to exactly this.
+ * A brand-new database is filled with these once (the "seed" operation);
+ * after that the database is the source and these lists are not read.
  */
 
 export const companies: Company[] = [

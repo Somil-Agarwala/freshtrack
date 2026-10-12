@@ -1,42 +1,23 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  collectionBags as seedCollections,
-  companies as seedCompanies,
-  distributors as seedDistributors,
-  countLines as seedCountLines,
-  dispatches as seedDispatches,
-  products as seedProducts,
-  records as seedRecords,
-  users as seedUsers,
-  sortedBags as seedSortedBags,
-} from "./seed-data";
-import {
-  issueCollectionNumbers,
-  issueDispatchNumber,
-  peekCollectionNumbers,
-  putIntoBags,
-  refreshBags,
-  seedSequence,
-  type SequenceState,
-} from "./bag-packing";
-import { bagValue } from "./claim";
-import { partySharesForBags } from "./pipeline";
-import { today } from "./utils";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import * as seed from "./seed-data";
+import { peekCollectionNumbers } from "./bag-packing";
+import { emptyData, type AppData } from "./sync/app-data";
+import { CLOUD, CloudAuth, CloudTransport, type CloudSession } from "./sync/cloud";
+import { SyncEngine, type KV, type SyncStatus } from "./sync/engine";
+import type { CollectionInput, CountInput, OpName } from "./sync/ops";
+import { LiveRev } from "./sync/realtime";
 import type { CollectionBag, Company, Distributor, CountLine, DamageRecord, Dispatch, Product, SortedBag, UserAccount } from "@/types";
 
 /**
- * One in-memory store shared by every page, so the pipeline genuinely
- * flows: counting a collection makes its pieces appear on the packing
- * screen, packing creates real bags, and dispatching moves those bags.
+ * The app's data, shared by every page and -- through the database -- by
+ * every phone and browser of the business.
  *
- * This is deliberately the ONLY place that mutates data. When Supabase is
- * wired up, each function below becomes a query/mutation and the
- * components calling them do not need to change.
- *
- * State is per-session and resets on refresh, which is expected until the
- * database is connected.
+ * Every change below is an operation (lib/sync/ops.ts). It shows on this
+ * screen at once and is saved in the background; other devices hear about
+ * it over Realtime within a second or two. Without internet, changes wait
+ * on the phone and are saved when it comes back.
  */
 interface StoreValue {
   companies: Company[];
@@ -70,7 +51,7 @@ interface StoreValue {
    * fills. Re-counting replaces the old pieces. Refused (false) once any of
    * the bag's goods have gone to the factory.
    */
-  saveCount: (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => boolean;
+  saveCount: (collectionId: string, lines: CountInput) => boolean;
   /** Closes a company's open bags part-filled before a factory run. */
   closeOpenBags: (companyId: string) => SortedBag[];
   deleteSortedBags: (ids: string[]) => void;
@@ -86,54 +67,130 @@ interface StoreValue {
   deleteRecords: (ids: string[]) => void;
 }
 
-interface CollectionInput {
-  companyId: string;
-  distributorId: string;
-  collectedDate: string;
-  estimatedPieces?: number;
-  notes?: string;
-  photoUrl?: string;
+export interface SyncValue {
+  /** cloud: shared through the database; local: this device only. */
+  mode: "cloud" | "local";
+  /** False until this device's saved sign-in has been read. */
+  checked: boolean;
+  /** The business account this device is signed in with. */
+  account: { email: string } | null;
+  status: SyncStatus;
+  /** Realtime connected: other devices' changes arrive within seconds. */
+  live: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  /** Signs this device out of the business account and forgets its copy of the data. */
+  signOut: () => Promise<void>;
+  changePassword: (password: string) => Promise<void>;
+  syncNow: () => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
+const SyncContext = createContext<SyncValue | null>(null);
+
+const seedData: AppData = {
+  companies: seed.companies,
+  distributors: seed.distributors,
+  products: seed.products,
+  users: seed.users,
+  collections: seed.collectionBags,
+  countLines: seed.countLines,
+  sortedBags: seed.sortedBags,
+  dispatches: seed.dispatches,
+  records: seed.records,
+  seq: {},
+};
+
+function browserStorage(): KV | null {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+const noTimer = {
+  setTimer: (fn: () => void, ms: number) => setTimeout(fn, ms),
+  clearTimer: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>),
+};
+
+/** Before sign-in there is nothing to show; screens are not rendered then anyway. */
+const idle = new SyncEngine({ transport: null, seed: { ...emptyData() } });
+
+const POLL_MS = 20_000;
+const POLL_LIVE_MS = 120_000;
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [companies, setCompanies] = useState<Company[]>(seedCompanies);
-  const [users, setUsers] = useState<UserAccount[]>(seedUsers);
-  const [distributors, setDistributors] = useState<Distributor[]>(seedDistributors);
-  const [products, setProducts] = useState<Product[]>(seedProducts);
-  const [collections, setCollections] = useState<CollectionBag[]>(seedCollections);
-  const [countLines, setCountLines] = useState<CountLine[]>(seedCountLines);
-  const [sortedBags, setSortedBags] = useState<SortedBag[]>(seedSortedBags);
-  const [dispatches, setDispatches] = useState<Dispatch[]>(seedDispatches);
-  const [records, setRecords] = useState<DamageRecord[]>(seedRecords);
+  const mode: SyncValue["mode"] = CLOUD.enabled ? "cloud" : "local";
+  const [auth, setAuth] = useState<CloudAuth | null>(null);
+  const [session, setSession] = useState<CloudSession | null>(null);
+  const [checked, setChecked] = useState(mode === "local");
+  const [live, setLive] = useState(false);
+  const [engine, setEngine] = useState<SyncEngine>(() => (mode === "local" ? new SyncEngine({ transport: null, seed: seedData }) : idle));
 
-  /**
-   * Forward-only numbering counters, seeded once from the numbers already
-   * present so seed rows are never re-issued. Held in a ref rather than state
-   * because it is not rendered and every mutation must see the latest value
-   * immediately -- a stale render would hand out a duplicate number.
-   */
-  const sequenceRef = useRef<SequenceState | null>(null);
-  if (sequenceRef.current === null) {
-    const state: SequenceState = {};
-    seedCompanies.forEach((company) => {
-      const years = new Set<number>();
-      const collect = (dates: string[]) => dates.forEach((d) => years.add(new Date(d).getFullYear()));
-      collect(seedCollections.filter((c) => c.companyId === company.id).map((c) => c.collectedDate));
-      collect(seedSortedBags.filter((b) => b.companyId === company.id).map((b) => b.createdDate));
-      collect(seedDispatches.filter((d) => d.companyId === company.id).map((d) => d.sentDate));
-      years.add(new Date().getFullYear());
+  // Read this device's business sign-in once, in the browser.
+  useEffect(() => {
+    if (mode !== "cloud") return;
+    const a = new CloudAuth(browserStorage());
+    setAuth(a);
+    setSession(a.session);
+    setChecked(true);
+    return a.subscribe(() => setSession(a.session));
+  }, [mode]);
 
-      years.forEach((year) => {
-        seedSequence(state, company.id, "COL", year, seedCollections.filter((c) => c.companyId === company.id).map((c) => c.bagNumber));
-        seedSequence(state, company.id, "BAG", year, seedSortedBags.filter((b) => b.companyId === company.id).map((b) => b.bagNumber));
-        seedSequence(state, company.id, "DSP", year, seedDispatches.filter((d) => d.companyId === company.id).map((d) => d.dispatchNumber));
-      });
-    });
-    sequenceRef.current = state;
-  }
-  const sequence = sequenceRef.current;
+  // One engine per business account; started when signed in.
+  const scope = session?.userId ?? "";
+  useEffect(() => {
+    if (mode !== "cloud" || !auth || !scope) return;
+    const e = new SyncEngine({ transport: new CloudTransport(auth), seed: seedData, storage: browserStorage(), scope, ...noTimer });
+    setEngine(e);
+    e.start();
+
+    const rt = new LiveRev(CLOUD.url, CLOUD.key, () => auth.token().catch(() => null), (rev) => e.remoteRev(rev), setLive);
+    rt.start();
+    const offAuth = auth.subscribe(() => void rt.refreshToken());
+
+    // Polling backs up Realtime, and catches up after the phone sleeps.
+    let ticks = 0;
+    const poll = setInterval(() => {
+      ticks += 1;
+      if (document.visibilityState !== "visible") return;
+      if (!rt.live || ticks * POLL_MS >= POLL_LIVE_MS) {
+        ticks = 0;
+        e.sync();
+      }
+    }, POLL_MS);
+    const wake = () => {
+      if (document.visibilityState === "visible") e.sync();
+    };
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === "freshtrack.pending") e.adoptPendingFrom(ev.newValue);
+      if (ev.key === "freshtrack.cloud-session") auth.reloadFromStorage();
+    };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
+    window.addEventListener("online", wake);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
+      window.removeEventListener("online", wake);
+      window.removeEventListener("storage", onStorage);
+      offAuth();
+      rt.stop();
+      e.stop();
+      setLive(false);
+    };
+  }, [mode, auth, scope]);
+
+  // A restored sign-in picks up where it left off.
+  useEffect(() => {
+    if (session?.accessToken && engine.getState().status.error === "auth") engine.sync();
+  }, [session?.accessToken, engine]);
+
+  const state = useSyncExternalStore(engine.subscribe, engine.getState, engine.getState);
+  const view = state.view;
 
   // Held in a ref so stamping never re-creates every mutation function.
   const actorRef = useRef<string | undefined>(undefined);
@@ -141,335 +198,110 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     actorRef.current = userId ?? undefined;
   }, []);
 
-  const addProduct = useCallback((product: Omit<Product, "id">) => {
-    const created: Product = { ...product, id: `p-${Date.now()}` };
-    setProducts((prev) => [...prev, created]);
-    return created;
-  }, []);
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
+  const op = useCallback(<R,>(name: OpName, ...args: unknown[]) => engineRef.current.run(name, args, actorRef.current) as R, []);
 
-  const addDistributor = useCallback((distributor: Omit<Distributor, "id" | "isActive">) => {
-    const created: Distributor = { ...distributor, id: `d-${Date.now()}`, isActive: true };
-    setDistributors((prev) => [...prev, created]);
-    return created;
-  }, []);
-
-  const addCollections = useCallback(
-    (input: CollectionInput, bagCount: number) => {
-      // One pickup usually means several bags from the same party, so the
-      // whole batch is numbered in a single pass. Sequences run per
-      // company, so Cadbury and Haldirams each keep their own clean run.
-      const safeCount = Math.max(1, Math.floor(bagCount));
-      const stamp = Date.now();
-      const code = companies.find((c) => c.id === input.companyId)?.code ?? "GEN";
-      // Numbers come from the forward-only counter, so deleting records can
-      // never cause a number to be handed out a second time.
-      const numbers = issueCollectionNumbers(code, input.companyId, input.collectedDate, sequence, safeCount);
-
-      const created: CollectionBag[] = Array.from({ length: safeCount }, (_, index) => ({
-        // Index is part of the id because Date.now() returns the same
-        // value for every bag created inside one loop.
-        id: `c-${stamp}-${index}`,
-        bagNumber: numbers[index],
-        companyId: input.companyId,
-        distributorId: input.distributorId,
-        collectedDate: input.collectedDate,
-        status: "uncounted",
-        estimatedPieces: input.estimatedPieces,
-        notes: input.notes,
-        // One photo usually shows the whole pickup, so every bag carries it.
-        photoUrl: input.photoUrl,
-        loggedBy: actorRef.current,
-      }));
-
-      // Reversed so the highest number ends up at the top of the list,
-      // matching the newest-first order of the rest of the page.
-      setCollections((prev) => [...created.slice().reverse(), ...prev]);
-      return created;
-    },
-    [companies, sequence]
+  const mutations = useMemo(
+    () => ({
+      saveCompany: (company: Company) => op<void>("saveCompany", company),
+      saveProduct: (product: Product) => op<void>("saveProduct", product),
+      saveDistributor: (distributor: Distributor) => op<void>("saveDistributor", distributor),
+      saveUser: (user: UserAccount) => op<void>("saveUser", user),
+      updateRecord: (id: string, patch: Partial<Omit<DamageRecord, "id">>) => op<void>("updateRecord", id, patch),
+      addProduct: (product: Omit<Product, "id">) => op<Product>("addProduct", product),
+      addDistributor: (distributor: Omit<Distributor, "id" | "isActive">) => op<Distributor>("addDistributor", distributor),
+      addCollections: (input: CollectionInput, bagCount: number) => op<CollectionBag[]>("addCollections", input, bagCount),
+      deleteCollections: (ids: string[]) => op<void>("deleteCollections", ids),
+      saveCount: (collectionId: string, lines: CountInput) => op<boolean>("saveCount", collectionId, lines),
+      closeOpenBags: (companyId: string) => op<SortedBag[]>("closeOpenBags", companyId),
+      deleteSortedBags: (ids: string[]) => op<void>("deleteSortedBags", ids),
+      createDispatch: (bagIds: string[]) => op<Dispatch | null>("createDispatch", bagIds),
+      recordSettlement: (dispatchId: string, receivedValue: number) => op<void>("recordSettlement", dispatchId, receivedValue),
+      deleteDispatches: (ids: string[]) => op<void>("deleteDispatches", ids),
+      addRecord: (record: Omit<DamageRecord, "id">) => op<DamageRecord>("addRecord", record),
+      deleteRecords: (ids: string[]) => op<void>("deleteRecords", ids),
+      previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => {
+        const data = engineRef.current.getState().view;
+        const code = data.companies.find((c) => c.id === companyId)?.code ?? "GEN";
+        return peekCollectionNumbers(code, companyId, collectedDate, data.seq, Math.max(1, Math.floor(count)));
+      },
+    }),
+    [op]
   );
-
-  const previewCollectionNumbers = useCallback(
-    (companyId: string, collectedDate: string, count: number) => {
-      const code = companies.find((c) => c.id === companyId)?.code ?? "GEN";
-      return peekCollectionNumbers(code, companyId, collectedDate, sequence, Math.max(1, Math.floor(count)));
-    },
-    [companies, sequence]
-  );
-
-  const deleteCollections = useCallback(
-    (ids: string[]) => {
-      // Goods already sent to the factory cannot be taken back out of a claim.
-      const sent = new Set(sortedBags.filter((b) => b.status === "dispatched").map((b) => b.id));
-      const allowed = new Set(ids.filter((id) => !countLines.some((l) => l.collectionId === id && l.bagId && sent.has(l.bagId))));
-      if (allowed.size === 0) return;
-      const rest = countLines.filter((l) => !allowed.has(l.collectionId));
-      setCollections((prev) => prev.filter((c) => !allowed.has(c.id)));
-      setCountLines(rest);
-      // Their pieces come out of the bags they were put in.
-      setSortedBags(refreshBags(sortedBags, rest));
-    },
-    [countLines, sortedBags]
-  );
-
-  const saveCount = useCallback(
-    (collectionId: string, lines: { productId: string; mrp: number; quantity: number }[]) => {
-      // The bag's company is copied onto every line, so bags can be filled
-      // by company without joining back through the collection each time.
-      const companyId = collections.find((c) => c.id === collectionId)?.companyId ?? "";
-      const old = countLines.filter((l) => l.collectionId === collectionId);
-      const sent = new Set(sortedBags.filter((b) => b.status === "dispatched").map((b) => b.id));
-      // A count whose goods have gone to the factory is final.
-      if (old.some((l) => l.bagId && sent.has(l.bagId))) return false;
-
-      const stamp = Date.now();
-      const fresh: CountLine[] = lines
-        .filter((line) => line.quantity > 0)
-        .map((line, index) => ({
-          id: `cl-${stamp}-${index}`,
-          collectionId,
-          companyId,
-          productId: line.productId,
-          mrp: line.mrp,
-          quantity: line.quantity,
-          // The claim rate is fixed at count time, like the MRP.
-          rate: products.find((p) => p.id === line.productId)?.claimRate,
-          packed: false,
-        }));
-
-      // A re-count first takes the old pieces back out of their bags. Bags
-      // left empty are kept for a moment, so the new count refills the same
-      // numbers that may already be written on the bags.
-      const rest = countLines.filter((l) => l.collectionId !== collectionId);
-      const emptied = refreshBags(sortedBags, rest, false);
-      const { lines: placed, bags } = putIntoBags(fresh, emptied, companies, today(), sequence, collectionId);
-      const allLines = [...rest, ...placed];
-      const before = new Map(sortedBags.map((b) => [b.id, b.status]));
-      const refreshed = refreshBags(bags, allLines).map((b) =>
-        // Whoever counted the pieces that filled a bag is the one who closes it.
-        b.status === "ready" && before.get(b.id) !== "ready" ? { ...b, tiedBy: actorRef.current } : b
-      );
-
-      setCountLines(allLines);
-      setSortedBags(refreshed);
-      setCollections((prev) =>
-        prev.map((c) =>
-          c.id === collectionId ? { ...c, status: fresh.length ? "packed" : "counted", countedDate: today(), countedBy: actorRef.current } : c
-        )
-      );
-      return true;
-    },
-    [collections, countLines, sortedBags, products, companies, sequence]
-  );
-
-  /**
-   * Closes a company's open bags part-filled, so they can go on today's
-   * factory run. Returns the bags closed.
-   */
-  const closeOpenBags = useCallback(
-    (companyId: string) => {
-      const closing = sortedBags.filter((b) => b.status === "open" && b.companyId === companyId && b.pieceCount > 0);
-      if (closing.length === 0) return [];
-      const ids = new Set(closing.map((b) => b.id));
-      const closed = closing.map((b) => ({ ...b, status: "ready" as const, closedEarly: true, tiedBy: actorRef.current }));
-      setSortedBags((prev) => prev.map((b) => (ids.has(b.id) ? closed.find((c) => c.id === b.id)! : b)));
-      return closed;
-    },
-    [sortedBags]
-  );
-
-  const deleteSortedBags = useCallback((ids: string[]) => {
-    const idSet = new Set(ids);
-    setSortedBags((prev) => prev.filter((b) => !idSet.has(b.id)));
-  }, []);
-
-  const createDispatch = useCallback(
-    (bagIds: string[]) => {
-      const idSet = new Set(bagIds);
-      const selected = sortedBags.filter((b) => idSet.has(b.id) && b.status === "ready");
-      if (selected.length === 0) return null;
-
-      // A dispatch goes to one company's factory, so refuse to build a
-      // mixed one rather than silently creating an unclaimable batch.
-      const companyId = selected[0].companyId;
-      if (selected.some((b) => b.companyId !== companyId)) return null;
-
-      const code = companies.find((c) => c.id === companyId)?.code ?? "GEN";
-
-      const dispatch: Dispatch = {
-        id: `dp-${Date.now()}`,
-        dispatchNumber: issueDispatchNumber(code, companyId, today(), sequence),
-        companyId,
-        sentDate: today(),
-        bagCount: selected.length,
-        pieceCount: selected.reduce((sum, b) => sum + b.pieceCount, 0),
-        claimedValue: Math.round(selected.reduce((sum, b) => sum + bagValue(b), 0) * 100) / 100,
-        status: "sent",
-        // Fixed now, so each party's account survives the bags later being
-        // cleared out once the claim settles.
-        partyShares: partySharesForBags(selected, collections, countLines),
-        sentBy: actorRef.current,
-      };
-
-      setDispatches((prev) => [dispatch, ...prev]);
-      setSortedBags((prev) =>
-        prev.map((b) => (idSet.has(b.id) && b.status === "ready" ? { ...b, status: "dispatched", dispatchId: dispatch.id } : b))
-      );
-      return dispatch;
-    },
-    [sortedBags, collections, countLines, companies, sequence]
-  );
-
-  const recordSettlement = useCallback((dispatchId: string, receivedValue: number) => {
-    setDispatches((prev) =>
-      prev.map((d) =>
-        d.id === dispatchId
-          ? {
-              ...d,
-              receivedValue,
-              // A short payment stays visible as "partially settled" rather
-              // than silently overwriting what was originally claimed.
-              status: receivedValue < d.claimedValue ? "partially_settled" : "settled",
-              settledDate: today(),
-              settledBy: actorRef.current,
-            }
-          : d
-      )
-    );
-  }, []);
-
-  const deleteDispatches = useCallback((ids: string[]) => {
-    const idSet = new Set(ids);
-    setDispatches((prev) => prev.filter((d) => !idSet.has(d.id)));
-  }, []);
-
-  const addRecord = useCallback(
-    (record: Omit<DamageRecord, "id">) => {
-      const created: DamageRecord = { ...record, id: `r-${Date.now()}`, loggedBy: actorRef.current };
-      setRecords((prev) => [created, ...prev]);
-
-      // Damage in our own godown is claimed from the factory like any other,
-      // so its pieces go into the same numbered bags -- tagged as our own.
-      const product = products.find((p) => p.id === record.productId);
-      if (record.source === "own_inventory" && product && (record.pieces ?? 0) > 0) {
-        const line: CountLine = {
-          id: `gl-${created.id}`,
-          collectionId: `godown:${created.id}`,
-          recordId: created.id,
-          companyId: record.companyId,
-          productId: product.id,
-          mrp: product.mrp,
-          quantity: record.pieces!,
-          rate: product.claimRate,
-          packed: false,
-        };
-        const { lines: placed, bags } = putIntoBags([line], sortedBags, companies, today(), sequence, line.collectionId);
-        const allLines = [...countLines, ...placed];
-        const before = new Map(sortedBags.map((b) => [b.id, b.status]));
-        setCountLines(allLines);
-        setSortedBags(refreshBags(bags, allLines).map((b) => (b.status === "ready" && before.get(b.id) !== "ready" ? { ...b, tiedBy: actorRef.current } : b)));
-      }
-      return created;
-    },
-    [products, sortedBags, countLines, companies, sequence]
-  );
-
-  const deleteRecords = useCallback(
-    (ids: string[]) => {
-      const sent = new Set(sortedBags.filter((b) => b.status === "dispatched").map((b) => b.id));
-      // Entries whose pieces have gone to the factory stay, like a sent pickup.
-      const allowed = new Set(ids.filter((id) => !countLines.some((l) => l.recordId === id && l.bagId && sent.has(l.bagId))));
-      if (allowed.size === 0) return;
-      const rest = countLines.filter((l) => !(l.recordId && allowed.has(l.recordId)));
-      setRecords((prev) => prev.filter((r) => !allowed.has(r.id)));
-      if (rest.length !== countLines.length) {
-        setCountLines(rest);
-        setSortedBags(refreshBags(sortedBags, rest));
-      }
-    },
-    [countLines, sortedBags]
-  );
-
-  const saveCompany = useCallback((company: Company) => setCompanies((prev) => upsert(prev, company)), []);
-  const saveProduct = useCallback((product: Product) => setProducts((prev) => upsert(prev, product)), []);
-  const saveDistributor = useCallback((distributor: Distributor) => setDistributors((prev) => upsert(prev, distributor)), []);
-  const saveUser = useCallback((user: UserAccount) => setUsers((prev) => upsert(prev, user)), []);
-  const updateRecord = useCallback((id: string, patch: Partial<Omit<DamageRecord, "id">>) => {
-    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  }, []);
 
   const value = useMemo<StoreValue>(
     () => ({
-      companies,
-      distributors,
-      products,
-      collections,
-      countLines,
-      sortedBags,
-      dispatches,
-      records,
-      users,
-      saveCompany,
-      saveProduct,
-      saveDistributor,
-      saveUser,
-      updateRecord,
+      companies: view.companies,
+      distributors: view.distributors,
+      products: view.products,
+      collections: view.collections,
+      countLines: view.countLines,
+      sortedBags: view.sortedBags,
+      dispatches: view.dispatches,
+      records: view.records,
+      users: view.users,
       setActor,
-      addProduct,
-      addDistributor,
-      addCollections,
-      previewCollectionNumbers,
-      deleteCollections,
-      saveCount,
-      closeOpenBags,
-      deleteSortedBags,
-      createDispatch,
-      recordSettlement,
-      deleteDispatches,
-      addRecord,
-      deleteRecords,
+      ...mutations,
     }),
-    [
-      companies,
-      distributors,
-      products,
-      collections,
-      countLines,
-      sortedBags,
-      dispatches,
-      records,
-      users,
-      saveCompany,
-      saveProduct,
-      saveDistributor,
-      saveUser,
-      updateRecord,
-      setActor,
-      addProduct,
-      addDistributor,
-      addCollections,
-      previewCollectionNumbers,
-      deleteCollections,
-      saveCount,
-      closeOpenBags,
-      deleteSortedBags,
-      createDispatch,
-      recordSettlement,
-      deleteDispatches,
-      addRecord,
-      deleteRecords,
-    ]
+    [view, setActor, mutations]
   );
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
-}
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      if (!auth) return;
+      await auth.signIn(email, password);
+    },
+    [auth]
+  );
 
-function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
-  return rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [...rows, row];
+  const signOut = useCallback(async () => {
+    engineRef.current.stop();
+    engineRef.current.clearStorage();
+    await auth?.signOut();
+    setEngine(idle);
+  }, [auth]);
+
+  const changePassword = useCallback(async (password: string) => {
+    await auth?.changePassword(password);
+  }, [auth]);
+
+  const syncNow = useCallback(() => engineRef.current.sync(), []);
+
+  // Signed in but the engine is not running yet: still loading.
+  const waiting = mode === "cloud" && engine === idle;
+  const status = useMemo(() => (waiting ? { ...state.status, phase: "loading" as const } : state.status), [waiting, state.status]);
+
+  const sync = useMemo<SyncValue>(
+    () => ({
+      mode,
+      checked,
+      account: session ? { email: session.email } : null,
+      status,
+      live,
+      signIn,
+      signOut,
+      changePassword,
+      syncNow,
+    }),
+    [mode, checked, session, status, live, signIn, signOut, changePassword, syncNow]
+  );
+
+  return (
+    <SyncContext.Provider value={sync}>
+      <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+    </SyncContext.Provider>
+  );
 }
 
 export function useStore() {
   const context = useContext(StoreContext);
   if (!context) throw new Error("useStore must be used inside StoreProvider");
+  return context;
+}
+
+export function useSync() {
+  const context = useContext(SyncContext);
+  if (!context) throw new Error("useSync must be used inside StoreProvider");
   return context;
 }

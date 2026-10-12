@@ -27,7 +27,8 @@ export function SendFactory() {
   const requested = params.get("company");
   const [chosen, setChosen] = useState<string | null>(null);
   const fallback = [...withBags].sort((a, b) => countFor(b.id) - countFor(a.id))[0]?.id ?? "";
-  const companyId = chosen ?? (requested && withBags.some((c) => c.id === requested) ? requested : fallback);
+  // A company picked earlier whose bags have all gone falls back too.
+  const companyId = chosen && withBags.some((c) => c.id === chosen) ? chosen : requested && withBags.some((c) => c.id === requested) ? requested : fallback;
   const company = companies.find((c) => c.id === companyId);
   const bags = ready.filter((b) => b.companyId === companyId).sort((a, b) => a.bagNumber.localeCompare(b.bagNumber));
 

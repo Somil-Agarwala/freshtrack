@@ -8,6 +8,7 @@ import { NEAR_FULL, STALE_CLAIM_DAYS, STALE_COUNT_DAYS, STALE_READY_DAYS } from 
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { AccountCard } from "@/components/account/account-card";
+import { ThisDeviceCard } from "@/components/account/cloud-screens";
 import { GearIcon } from "@/components/ft/icons";
 import { Field, inputClass } from "@/components/ft/kit";
 import { BigButton, ListHeader, Screen, ScreenBody } from "@/components/ft/screen";
@@ -46,6 +47,7 @@ export function SettingsScreen() {
       <ListHeader tone="neutral" icon={<GearIcon size={26} />} title={t("सेटिंग", "Settings")} subtitle={t("आपका खाता, भाषा और नियम", "Your account, language and rules")} />
       <ScreenBody className="gap-4">
         <AccountCard />
+        <ThisDeviceCard />
 
         <section className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-4">
           <p className="text-[15px] font-bold">
@@ -103,12 +105,8 @@ export function SettingsScreen() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-sm text-ink-faint">{t("ये नियम डेटाबेस जुड़ने के बाद यहीं से बदले जा सकेंगे।", "These become editable here once the database is connected.")}</p>
+          <p className="mt-2 text-sm text-ink-faint">{t("ये नियम अभी ऐप में तय हैं।", "These rules are fixed in the app for now.")}</p>
         </section>
-
-        <p className="rounded-2xl bg-count-tint p-3.5 text-[15px] text-count-note">
-          {t("अभी डेटाबेस नहीं जुड़ा है, इसलिए पेज रीलोड करने पर सिर्फ़ शुरू की सूची (कंपनी, सामान, पार्टी) बचती है — दर्ज किया काम मिट जाता है।", "The database is not connected yet: a reload keeps only the starting lists (companies, products, parties) and clears entered work.")}
-        </p>
       </ScreenBody>
       <Notice message={message} />
     </Screen>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { shareOnWhatsApp, useFlash } from "@/lib/device";
 import { daysBetween, daysSince, fullDate, initials, inr, lakhShort, num } from "@/lib/format";
@@ -26,12 +26,11 @@ type View = "runs" | "parties";
  * parties whose goods were on it, which gives every party its account.
  */
 export function MoneyScreen() {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const { t, sub, lang } = useLang();
   const { dispatches, distributors, sortedBags, collections, countLines, recordSettlement } = useStore();
-  const view: View = params.get("view") === "parties" ? "parties" : "runs";
+  const [view, setViewState] = useState<View>(params.get("view") === "parties" ? "parties" : "runs");
   const [filter, setFilter] = useState<Filter>("all");
   const [openRun, setOpenRun] = useState<string | null>(null);
   // ?party= opens that party's account straight away (from the Parties page).
@@ -47,13 +46,18 @@ export function MoneyScreen() {
   const accounts = useMemo(() => partyAccounts(dispatches, sortedBags, collections, countLines), [dispatches, sortedBags, collections, countLines]);
   const partyName = (id: string) => (id === OWN_GODOWN ? t("अपना गोदाम", "Own godown") : distributors.find((d) => d.id === id)?.name ?? "—");
 
-  const setView = (next: View) => router.replace(next === "runs" ? pathname : `${pathname}?view=parties`, { scroll: false });
+  // Switches at once on the phone; the address bar follows without asking the server.
+  const setView = (next: View) => {
+    setViewState(next);
+    window.history.replaceState(window.history.state, "", next === "runs" ? pathname : `${pathname}?view=parties`);
+  };
 
   const run = dispatches.find((d) => d.id === openRun) ?? null;
   const account = accounts.find((a) => a.distributorId === openParty) ?? null;
 
   const tab = (value: View, hi: string, en: string) => (
     <button
+      type="button"
       role="tab"
       aria-selected={view === value}
       onClick={() => setView(value)}
@@ -157,6 +161,7 @@ function RunList({
 
   const chip = (value: Filter, label: string) => (
     <button
+      type="button"
       role="tab"
       aria-selected={filter === value}
       onClick={() => onFilter(value)}

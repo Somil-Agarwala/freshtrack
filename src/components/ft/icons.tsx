@@ -287,3 +287,24 @@ export const LogoutIcon = (p: IconProps) => (
     <path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" />
   </Svg>
 );
+
+export const CloudIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M17.5 19H7a5 5 0 1 1 1.1-9.88A6 6 0 0 1 19.5 11a4 4 0 0 1-2 8Z" />
+  </Svg>
+);
+
+export const CloudOffIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M17.5 19H7a5 5 0 0 1-2.2-9.5" />
+    <path d="M9.2 6.4A6 6 0 0 1 19.5 11a4 4 0 0 1 1.6 7" />
+    <path d="m3 3 18 18" />
+  </Svg>
+);
+
+export const EyeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </Svg>
+);

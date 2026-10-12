@@ -5,6 +5,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { showsBottomNav } from "@/config/nav";
 import { useLang } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
+import { useSync } from "@/lib/store";
+import { BusinessLogin, SyncLoading, SyncPill, SyncProblem } from "@/components/account/cloud-screens";
 import { SignInScreen } from "@/components/account/sign-in-screen";
 import { BigLink, Screen, ScreenBody } from "@/components/ft/screen";
 import { LockIcon } from "@/components/ft/icons";
@@ -22,12 +24,23 @@ import { DesktopHeader } from "./desktop-header";
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, ready, canVisit } = useSession();
+  const sync = useSync();
   const nav = showsBottomNav(pathname);
 
-  // Nothing until the saved sign-in is read, so the sign-in screen never
+  // Nothing until the saved sign-ins are read, so a sign-in screen never
   // flashes up for someone who is already signed in.
-  if (!ready) return <div className="min-h-[100dvh] bg-canvas" />;
-  if (!user) return <SignInScreen />;
+  if (!ready || !sync.checked) return <div className="min-h-[100dvh] bg-canvas" />;
+  // The phone joins the business once; then the data loads.
+  if (sync.mode === "cloud" && !sync.account) return <BusinessLogin />;
+  if (sync.status.phase === "loading") return <SyncLoading />;
+  if (sync.status.phase === "error") return <SyncProblem />;
+  if (!user)
+    return (
+      <>
+        <SyncPill />
+        <SignInScreen />
+      </>
+    );
 
   const vars = {
     // Footers and sheets stack on top of whatever is fixed at the bottom.
@@ -41,6 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <DashboardFiltersProvider>
       <CountDraftProvider>
         <div className="min-h-[100dvh] bg-canvas pb-[var(--nav-h)] lg:pb-0 lg:[--nav-h:0px] lg:[--safe-b:0px]" style={vars}>
+          <SyncPill />
           <DesktopHeader />
           {canVisit(pathname) ? children : <NoAccess />}
           {nav && <BottomNav />}

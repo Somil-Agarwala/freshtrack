@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { shrinkPhoto } from "@/lib/device";
 import { dayMonth, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
@@ -131,15 +132,16 @@ export function PickupBags() {
           accept="image/*"
           capture="environment"
           className="hidden"
-          onChange={(e) => {
+          onChange={async (e) => {
             const file = e.target.files?.[0];
-            if (file) setPhoto(URL.createObjectURL(file));
+            // Made small so it is saved with the pickup and shows on every phone.
+            if (file) setPhoto(await shrinkPhoto(file));
           }}
         />
         <button type="button" onClick={() => photoInput.current?.click()} className={`${softButton} h-14 border-line bg-surface text-[17px]`}>
           {photo ? (
             <>
-              {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- small data URL */}
               <img src={photo} alt="" className="h-9 w-9 rounded-lg object-cover" />
               <CheckIcon size={20} className="text-money" />
               {t("फोटो लगी · बदलें", "Photo added · change")}
