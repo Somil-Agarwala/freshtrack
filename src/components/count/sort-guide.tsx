@@ -48,7 +48,7 @@ export function SortGuide({ collectionId }: { collectionId: string }) {
       <TaskHeader
         back={`/collections/${pickup.id}`}
         tone="pile"
-        kicker={`✓ ${num(counted)} ${t("पीस गिने", "pieces counted")} · ${shortNumber}${party ? ` · ${party.name}` : ""}`}
+        kicker={`✓ ${num(counted)} ${pickup.direct ? t("पीस डाले", "pieces entered") : t("पीस गिने", "pieces counted")} · ${shortNumber}${party ? ` · ${party.name}` : ""}`}
         aside={
           speakable && cards.length > 0 ? (
             <button
@@ -72,10 +72,17 @@ export function SortGuide({ collectionId }: { collectionId: string }) {
       </ScreenBody>
 
       <ScreenFooter>
-        <BigLink tone="count" href="/count">
-          {t("अगला बैग गिनें", "Count the next bag")}
-          <ArrowRightIcon />
-        </BigLink>
+        {pickup.direct ? (
+          <BigLink tone="count" href={`/direct?company=${company.id}`}>
+            {t("अगली पार्टी का माल डालें", "Next party's goods")}
+            <ArrowRightIcon />
+          </BigLink>
+        ) : (
+          <BigLink tone="count" href="/count">
+            {t("अगला बैग गिनें", "Count the next bag")}
+            <ArrowRightIcon />
+          </BigLink>
+        )}
         <Link href={`/piles?company=${company.id}`} className="flex h-11 items-center justify-center text-base font-bold text-ink-dim">
           {t("सारे खुले बैग देखें", "See all open bags")}
         </Link>

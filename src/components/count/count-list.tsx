@@ -5,16 +5,18 @@ import { useMemo, useState } from "react";
 import { daysSince, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { STALE_COUNT_DAYS, uncountedOldestFirst } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { CompanyAvatar } from "@/components/ft/brand";
-import { ArrowRightIcon, CheckIcon, ClipboardIcon } from "@/components/ft/icons";
+import { ArrowRightIcon, CheckIcon, ClipboardIcon, PlusIcon } from "@/components/ft/icons";
 import { AgePill, CompanyTabs, ListHeader, Screen, ScreenBody } from "@/components/ft/screen";
 
 /** Every sealed bag still to be counted, oldest on top. */
 export function CountList() {
   const { t, lang } = useLang();
   const { collections, companies, distributors } = useStore();
+  const { can } = useSession();
   const [companyId, setCompanyId] = useState("all");
 
   const all = useMemo(() => uncountedOldestFirst(collections), [collections]);
@@ -44,6 +46,16 @@ export function CountList() {
       </ListHeader>
 
       <ScreenBody className="gap-2.5">
+        {can("pickupCount") && (
+          <Link href="/direct" className="flex items-center gap-3 rounded-[18px] border-2 border-dashed border-count/50 px-3.5 py-3 text-left transition-colors hover:bg-count-tint">
+            <PlusIcon size={22} className="shrink-0 text-count" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] font-bold">{t("माल पहले से गिना है? सीधे बैग में डालें", "Already counted? Put it straight into bags")}</span>
+              <span className="block text-sm text-ink-dim">{t("पिकअप दर्ज किए बिना, पार्टी का गिना हुआ माल", "A party's counted goods, without the pickup step")}</span>
+            </span>
+            <ArrowRightIcon size={20} className="shrink-0 text-count" />
+          </Link>
+        )}
         {shown.length === 0 && (
           <div className="flex flex-col items-center gap-3 rounded-[20px] border border-line bg-surface px-4 py-10 text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-money text-money-ink">

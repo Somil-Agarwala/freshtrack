@@ -61,6 +61,19 @@ export function HomeScreen() {
           <PlusIcon size={30} />
         </Link>
 
+        {can("pickupCount") && (
+          <Link href="/direct" className="-mt-1 flex items-center gap-3 rounded-[18px] border border-count/40 bg-count-tint px-3.5 py-3 transition-colors hover:brightness-110">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-count text-count-ink">
+              <ClipboardIcon size={24} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-display text-[19px] font-bold leading-[1.15]">{t("माल पहले से गिना है?", "Already counted?")}</span>
+              <span className="block text-sm text-count-soft">{t("सीधे बैग में डालें · Add counted goods", "Put it straight into bags · सीधे बैग में")}</span>
+            </span>
+            <ChevronRightIcon size={22} className="text-count" />
+          </Link>
+        )}
+
         {stale > 0 && (
           <Link href="/count" className="flex items-center gap-3 rounded-2xl border border-danger-line bg-danger-tint px-3.5 py-3 text-danger-note">
             <AlertIcon className="text-danger-icon" />

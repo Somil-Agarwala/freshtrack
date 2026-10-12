@@ -42,6 +42,7 @@ const ROUTES: [RegExp, Action][] = [
   [/^\/users/, "manageUsers"],
   [/^\/master-data\/companies/, "editMaster"],
   [/^\/pickup/, "pickupCount"],
+  [/^\/direct/, "pickupCount"],
   [/^\/count\/.+/, "pickupCount"],
   [/^\/godown\/new/, "pickupCount"],
   [/^\/piles\/tied/, "tieSend"],

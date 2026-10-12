@@ -117,6 +117,11 @@ export interface CollectionBag {
   /** User who logged the pickup, and who counted it. */
   loggedBy?: string;
   countedBy?: string;
+  /**
+   * Entered straight from a count sheet ("Add counted goods"): the goods
+   * were already counted, so there was no separate pickup step.
+   */
+  direct?: boolean;
 }
 
 /** One counted SKU line inside a collection bag. */

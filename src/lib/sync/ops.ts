@@ -96,6 +96,20 @@ export const OPS = {
     return [{ ...d, seq, collections: [...created, ...d.collections] }, created];
   },
 
+  /**
+   * Goods a party sent that are already counted: one pickup record, marked
+   * as a direct entry, with its count saved at once -- so the pieces go
+   * straight into the numbered bags, like a normal count.
+   */
+  addCountedPickup(d: AppData, env: OpEnv, input: CollectionInput, lines: CountInput): Result<CollectionBag | null> {
+    if (!lines.some((l) => l.quantity > 0)) return [d, null];
+    const [withPickup, created] = OPS.addCollections(d, env, input, 1);
+    const id = created[0].id;
+    const marked = { ...withPickup, collections: withPickup.collections.map((c) => (c.id === id ? { ...c, direct: true } : c)) };
+    const [counted] = OPS.saveCount(marked, env, id, lines);
+    return [counted, counted.collections.find((c) => c.id === id) ?? null];
+  },
+
   deleteCollections(d: AppData, _env: OpEnv, ids: string[]): Result<void> {
     // Goods already sent to the factory cannot be taken back out of a claim.
     const sent = sentIds(d.sortedBags);

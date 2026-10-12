@@ -209,7 +209,7 @@ function ItemTiles({ bag, draft }: { bag: CollectionBag; draft: Record<string, n
 
 const COMMON_MRPS = [5, 10, 20, 30, 50];
 
-function NewItemSheet({ open, initialName, onClose, onSave }: { open: boolean; initialName: string; onClose: () => void; onSave: (name: string, mrp: number) => void }) {
+export function NewItemSheet({ open, initialName, onClose, onSave }: { open: boolean; initialName: string; onClose: () => void; onSave: (name: string, mrp: number) => void }) {
   const { t } = useLang();
   const [name, setName] = useState(initialName);
   const [mrp, setMrp] = useState("");

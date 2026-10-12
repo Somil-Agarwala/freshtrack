@@ -63,7 +63,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
     { done: true, title: t("पार्टी से आया", "Picked up"), detail: `${fullDate(bag.collectedDate, lang)} · ${party?.name ?? ""}` },
     {
       done: bag.status !== "uncounted",
-      title: t("गिना गया", "Counted"),
+      title: bag.direct ? t("गिना हुआ माल सीधे डाला", "Counted goods entered directly") : t("गिना गया", "Counted"),
       detail: bag.countedDate ? `${fullDate(bag.countedDate, lang)} · ${num(pieces)} ${t("पीस", "pcs")}` : t(`${daysSince(bag.collectedDate)} दिन से इंतज़ार`, `waiting ${daysSince(bag.collectedDate)} days`),
     },
     {

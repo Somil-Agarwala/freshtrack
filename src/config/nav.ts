@@ -13,6 +13,7 @@ export interface StepLink {
 export const stepLinks: StepLink[] = [
   { href: "/", hi: "डैशबोर्ड", en: "Dashboard", tone: "neutral", match: ["/dashboard"] },
   { href: "/pickup", hi: "माल", en: "Pickup", tone: "pickup", match: ["/pickup", "/collections"] },
+  { href: "/direct", hi: "गिना माल डालें", en: "Add counted", tone: "count", match: ["/direct"] },
   { href: "/count", hi: "गिनती", en: "Count", tone: "count", match: ["/count"] },
   { href: "/piles", hi: "बैग", en: "Bags", tone: "pile", match: ["/piles", "/sorted-bags"] },
   { href: "/send", hi: "फैक्ट्री", en: "Factory", tone: "factory", match: ["/send"] },
@@ -33,6 +34,7 @@ export const moreSections: { hi: string; en: string; links: MoreLink[] }[] = [
     hi: "रोज़ का काम",
     en: "Daily work",
     links: [
+      { href: "/direct", hi: "गिना हुआ माल सीधे डालें", en: "Add already-counted goods", tone: "count" },
       { href: "/godown/new", hi: "गोदाम में माल ख़राब हुआ", en: "Log godown damage", tone: "godown" },
       { href: "/godown", hi: "गोदाम का नुकसान", en: "Godown damage", tone: "godown" },
       { href: "/money", hi: "हिसाब", en: "Factory money", tone: "money" },
@@ -71,6 +73,7 @@ export const moreSections: { hi: string; en: string; links: MoreLink[] }[] = [
 export function showsBottomNav(pathname: string) {
   const task =
     pathname.startsWith("/pickup") ||
+    pathname.startsWith("/direct") ||
     pathname === "/money" ||
     /^\/(count|send|collections|dispatches)\/.+/.test(pathname) ||
     pathname.startsWith("/piles/") ||

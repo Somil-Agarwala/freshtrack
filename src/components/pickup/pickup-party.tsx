@@ -133,7 +133,7 @@ export function PickupParty() {
 const field =
   "h-14 w-full rounded-2xl border border-line bg-canvas px-4 text-[17px] text-ink outline-none placeholder:text-ink-faint focus:border-pickup";
 
-function NewPartySheet({
+export function NewPartySheet({
   open,
   initialName,
   onClose,

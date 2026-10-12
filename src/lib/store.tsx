@@ -41,6 +41,12 @@ interface StoreValue {
   addProduct: (product: Omit<Product, "id">) => Product;
   addDistributor: (distributor: Omit<Distributor, "id" | "isActive">) => Distributor;
   addCollections: (input: CollectionInput, bagCount: number) => CollectionBag[];
+  /**
+   * Already-counted goods from a party, without a separate pickup step: one
+   * pickup record (marked direct) with its count saved, pieces straight into
+   * the numbered bags. Null when nothing was counted.
+   */
+  addCountedPickup: (input: CollectionInput, lines: CountInput) => CollectionBag | null;
   /** What the next `count` collection numbers would be, without consuming them. */
   previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => string[];
   /** Deletes pickups and takes their pieces back out of their bags. Not for goods already sent. */
@@ -218,6 +224,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addProduct: (product: Omit<Product, "id">) => op<Product>("addProduct", product),
       addDistributor: (distributor: Omit<Distributor, "id" | "isActive">) => op<Distributor>("addDistributor", distributor),
       addCollections: (input: CollectionInput, bagCount: number) => op<CollectionBag[]>("addCollections", input, bagCount),
+      addCountedPickup: (input: CollectionInput, lines: CountInput) => op<CollectionBag | null>("addCountedPickup", input, lines),
       deleteCollections: (ids: string[]) => op<void>("deleteCollections", ids),
       saveCount: (collectionId: string, lines: CountInput) => op<boolean>("saveCount", collectionId, lines),
       closeOpenBags: (companyId: string) => op<SortedBag[]>("closeOpenBags", companyId),
