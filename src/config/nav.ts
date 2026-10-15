@@ -35,6 +35,7 @@ export const moreSections: { hi: string; en: string; links: MoreLink[] }[] = [
     en: "Daily work",
     links: [
       { href: "/direct", hi: "गिना हुआ माल सीधे डालें", en: "Add already-counted goods", tone: "count" },
+      { href: "/party-message", hi: "पार्टी को गिनती का WhatsApp", en: "WhatsApp a party what came in", tone: "money" },
       { href: "/godown/new", hi: "गोदाम में माल ख़राब हुआ", en: "Log godown damage", tone: "godown" },
       { href: "/godown", hi: "गोदाम का नुकसान", en: "Godown damage", tone: "godown" },
       { href: "/money", hi: "हिसाब", en: "Factory money", tone: "money" },
@@ -74,6 +75,7 @@ export function showsBottomNav(pathname: string) {
   const task =
     pathname.startsWith("/pickup") ||
     pathname.startsWith("/direct") ||
+    pathname.startsWith("/party-message") ||
     pathname === "/money" ||
     /^\/(count|send|collections|dispatches)\/.+/.test(pathname) ||
     pathname.startsWith("/piles/") ||

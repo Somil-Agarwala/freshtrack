@@ -9,8 +9,9 @@ import { awaitingPayment, openBags, readyBags, staleUncounted, sumValue, STALE_C
 import { useStore } from "@/lib/store";
 import { today } from "@/lib/utils";
 import { OPEN_STATUSES } from "@/lib/constants";
-import { AlertIcon, ChevronRightIcon, ClipboardIcon, LayersIcon, MenuIcon, PlusIcon, RupeeIcon, SendIcon, TruckIcon, WarehouseIcon } from "@/components/ft/icons";
+import { AlertIcon, ChevronRightIcon, ClipboardIcon, LayersIcon, MenuIcon, PlusIcon, RupeeIcon, SendIcon, TruckIcon, WarehouseIcon, WhatsAppIcon } from "@/components/ft/icons";
 import { LangToggle } from "@/components/layout/lang-toggle";
+import { partiesToMessage } from "@/lib/party-message";
 
 /** Phone home: what to do today, in the order the work flows. */
 export function HomeScreen() {
@@ -22,6 +23,7 @@ export function HomeScreen() {
 
   const uncounted = collections.filter((c) => c.status === "uncounted").length;
   const stale = staleUncounted(collections).length;
+  const toTell = partiesToMessage(collections).length;
   const filling = openBags(sortedBags);
   const ready = readyBags(sortedBags);
   const owed = awaitingPayment(dispatches);
@@ -71,6 +73,18 @@ export function HomeScreen() {
               <span className="block text-sm text-count-soft">{t("सीधे बैग में डालें · Add counted goods", "Put it straight into bags · सीधे बैग में")}</span>
             </span>
             <ChevronRightIcon size={22} className="text-count" />
+          </Link>
+        )}
+
+        {toTell > 0 && can("pickupCount") && (
+          <Link href="/party-message" className="flex items-center gap-3 rounded-2xl border border-money-line bg-money-tint px-3.5 py-3 text-money-note">
+            <WhatsAppIcon size={24} className="shrink-0 text-money" />
+            <span className="flex-1 text-[15px] leading-[1.3]">
+              <b className="font-bold">{t(`${toTell} पार्टियों को गिनती का WhatsApp भेजना बाकी`, `${toTell} part${toTell > 1 ? "ies" : "y"} to WhatsApp what came in`)}</b>
+              <br />
+              <span className="text-[13px] text-money-mute">{t("हर पार्टी के सारे बैग का एक संदेश", "One message per party for all their bags")}</span>
+            </span>
+            <ChevronRightIcon size={20} />
           </Link>
         )}
 
