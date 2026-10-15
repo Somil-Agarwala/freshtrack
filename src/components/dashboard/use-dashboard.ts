@@ -5,10 +5,9 @@ import { useMemo } from "react";
 import { addDays, daysSince, lakhShort, num } from "@/lib/format";
 import type { Lang } from "@/lib/i18n";
 import {
-  BAG_CAPACITY,
-  NEAR_FULL,
   STALE_CLAIM_DAYS,
   STALE_COUNT_DAYS,
+  STALE_OPEN_DAYS,
   STALE_READY_DAYS,
   averageDaysToPay,
   awaitingPayment,
@@ -58,7 +57,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
     const uncounted = cols.filter((c) => c.status === "uncounted");
     // An estimate, so it is rounded rather than shown to the rupee.
     const uncountedValue = Math.round(uncountedEstimate(uncounted, countLines, collections) / 100) * 100;
-    // Counted pieces sit in numbered bags still being filled until a bag reaches 700.
+    // Counted pieces sit in numbered bags still being filled until a manager ties them.
     const filling = openBags(sortedBags).filter((b) => inScope(b.companyId));
     const loosePieces = filling.reduce((s, b) => s + b.pieceCount, 0);
     const looseValue = sumValue(filling);
@@ -114,7 +113,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
     companies.forEach((c) => {
       const theirs = ready.filter((b) => b.companyId === c.id);
       if (!theirs.length) return;
-      const oldest = Math.max(...theirs.map((b) => daysSince(b.createdDate)));
+      const oldest = Math.max(...theirs.map((b) => daysSince(b.tiedDate ?? b.createdDate)));
       if (oldest < STALE_READY_DAYS) return;
       alerts.push({
         level: "yellow",
@@ -124,17 +123,14 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
       });
     });
     filling
-      .filter((b) => BAG_CAPACITY - b.pieceCount <= NEAR_FULL)
+      .filter((b) => daysSince(b.createdDate) >= STALE_OPEN_DAYS)
       .forEach((b) => {
-        const c = companies.find((x) => x.id === b.companyId);
+        const days = daysSince(b.createdDate);
         alerts.push({
           level: "yellow",
           href: `/piles?company=${b.companyId}`,
-          title: t(
-            `${b.bagNumber} में ${b.pieceCount}/${BAG_CAPACITY} — ${BAG_CAPACITY - b.pieceCount} पीस से बैग भरेगा`,
-            `${b.bagNumber} has ${b.pieceCount}/${BAG_CAPACITY} — ${BAG_CAPACITY - b.pieceCount} pieces to a full bag`
-          ),
-          detail: t(`पहले ${c?.name} का एक और बैग गिनें`, `Count one more ${c?.name} bag first`),
+          title: t(`${b.bagNumber} ${days} दिन से खुला है — ${num(b.pieceCount)} पीस`, `${b.bagNumber} has been open ${days} days — ${num(b.pieceCount)} pieces`),
+          detail: t("भर गया हो तो बाँध दें, ताकि फैक्ट्री भेज सकें", "If it is full, tie it so it can go to the factory"),
         });
       });
     disp

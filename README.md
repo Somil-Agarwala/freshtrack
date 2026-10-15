@@ -61,22 +61,18 @@ Open http://localhost:3000.
 
 ## How bag packing works
 
-`src/lib/bag-packing.ts` holds the logic, and it is worth understanding
-before changing anything:
+`src/lib/bag-packing.ts` holds the logic:
 
-- **Capacity is one constant.** `BAG_CAPACITY = 700`. Change it there and
-  every preview, projection and generated bag follows.
-- **Pieces pool across collection bags.** If Ganga Traders returns 900
-  pieces at MRP 10 and Purvanchal returns 750, those pool into 1,650 and
-  become three bags (700 + 700 + 250), not two part-filled bags per
-  party. Pooling is what actually fills bags. Traceability is preserved
-  through `sourceCollectionIds` on every bag, and the exported report has
-  a Traceability sheet showing which party contributed what.
-- **The trailing bag is flagged.** The last bag in a tier is marked
-  part-filled rather than being silently treated as full.
-- **Nothing is generated blind.** The packing panel shows the full split
-  per MRP tier — pieces, full bags, remainder, value — before you
-  generate anything.
+- **Bags are kept apart by company and MRP.** Each company + MRP has one
+  open bag. Counted pieces go straight into it the moment a count is saved.
+- **No piece limit.** How many pieces make a full bag depends on the
+  product, so a manager ties a bag by hand when it is full ("Bag full —
+  tie it"). The next pieces of that MRP open a newly numbered bag. A bag
+  tied by mistake can be opened again while no other bag of that MRP is open.
+- **Re-counts stay in their bag.** A corrected count puts each MRP's pieces
+  back into the bag they were already in, even if it has been tied.
+- **Traceability.** Every bag knows its items, which pickups (parties) and
+  own-godown entries its pieces came from, and its claim value.
 
 ## Project structure
 

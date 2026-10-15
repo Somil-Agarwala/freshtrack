@@ -58,7 +58,11 @@ interface StoreValue {
    * the bag's goods have gone to the factory.
    */
   saveCount: (collectionId: string, lines: CountInput) => boolean;
-  /** Closes a company's open bags part-filled before a factory run. */
+  /** A manager ties a full bag by hand (no piece limit). False if it is not an open bag with pieces. */
+  tieBag: (bagId: string) => boolean;
+  /** Opens a bag tied by mistake. False once sent, or while another bag of that MRP is open. */
+  untieBag: (bagId: string) => boolean;
+  /** Ties every open bag of a company at once, e.g. before a factory run. */
   closeOpenBags: (companyId: string) => SortedBag[];
   deleteSortedBags: (ids: string[]) => void;
   createDispatch: (bagIds: string[]) => Dispatch | null;
@@ -227,6 +231,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addCountedPickup: (input: CollectionInput, lines: CountInput) => op<CollectionBag | null>("addCountedPickup", input, lines),
       deleteCollections: (ids: string[]) => op<void>("deleteCollections", ids),
       saveCount: (collectionId: string, lines: CountInput) => op<boolean>("saveCount", collectionId, lines),
+      tieBag: (bagId: string) => op<boolean>("tieBag", bagId),
+      untieBag: (bagId: string) => op<boolean>("untieBag", bagId),
       closeOpenBags: (companyId: string) => op<SortedBag[]>("closeOpenBags", companyId),
       deleteSortedBags: (ids: string[]) => op<void>("deleteSortedBags", ids),
       createDispatch: (bagIds: string[]) => op<Dispatch | null>("createDispatch", bagIds),

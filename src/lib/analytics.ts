@@ -1,5 +1,4 @@
 import { bagValue, lineValue } from "./claim";
-import { BAG_CAPACITY } from "./bag-packing";
 import { formatCurrency, formatNumber } from "./utils";
 import { REASON_LABELS } from "./constants";
 import type {
@@ -309,20 +308,23 @@ export function mrpBreakdown(d: Dataset) {
 /* 5. OPERATIONS -- how well the process is running                  */
 /* ---------------------------------------------------------------- */
 
+/**
+ * Tied bags (in the godown or sent): how many pieces a full bag ends up
+ * holding -- there is no fixed limit, it depends on the product -- and how
+ * long bags stay open before they are tied.
+ */
 export function bagFill(d: Dataset) {
-  // Bags still being filled are part-full by nature, so they are left out.
+  // Bags still being filled are left out: they are not finished.
   const bags = d.sortedBags.filter((b) => b.status !== "open");
-  const full = bags.filter((b) => b.isFull).length;
-  const partial = bags.length - full;
-  const pieces = bags.reduce((s, b) => s + b.pieceCount, 0);
-  const capacity = bags.length * BAG_CAPACITY;
+  const counts = bags.map((b) => b.pieceCount);
+  const pieces = counts.reduce((s, n) => s + n, 0);
+  const days = bags.filter((b) => b.tiedDate).map((b) => Math.max(0, Math.round((Date.parse(b.tiedDate!) - Date.parse(b.createdDate)) / 86_400_000)));
   return {
     bags: bags.length,
-    full,
-    partial,
-    avgFillPct: bags.length > 0 ? (pieces / capacity) * 100 : 0,
-    // Unused space across part-filled bags: the cost of fragmentation.
-    wastedPieces: capacity - pieces,
+    avgPieces: bags.length ? pieces / bags.length : 0,
+    minPieces: counts.length ? Math.min(...counts) : 0,
+    maxPieces: counts.length ? Math.max(...counts) : 0,
+    avgDaysOpen: days.length ? days.reduce((s, n) => s + n, 0) / days.length : 0,
   };
 }
 
@@ -524,14 +526,14 @@ export function insights(d: Dataset): Insight[] {
     });
   }
 
-  // Process quality.
-  const fill = bagFill(d);
-  if (fill.bags > 0 && fill.avgFillPct < 85) {
+  // Process quality: bags left open a long time are probably full but not tied.
+  const longOpen = d.sortedBags.filter((b) => b.status === "open" && Date.now() - Date.parse(b.createdDate) >= 10 * 86_400_000);
+  if (longOpen.length > 0) {
     out.push({
       level: "warning",
-      title: `Bags are only ${fill.avgFillPct.toFixed(0)}% full on average`,
-      detail: `${formatNumber(fill.wastedPieces)} pieces of space unused. Packing less often lets tiers fill up.`,
-      href: "/sorted-bags",
+      title: `${longOpen.length} bag${longOpen.length === 1 ? " has" : "s have"} been open for 10+ days`,
+      detail: `${formatNumber(longOpen.reduce((s, b) => s + b.pieceCount, 0))} pieces waiting. If they are full, tie them so they can go to the factory.`,
+      href: "/piles",
     });
   }
 

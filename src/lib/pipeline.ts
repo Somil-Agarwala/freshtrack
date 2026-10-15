@@ -1,4 +1,3 @@
-import { BAG_CAPACITY } from "./bag-packing";
 import { bagValue, lineValue } from "./claim";
 import { addDays, daysBetween, daysSince } from "./format";
 import { today } from "./utils";
@@ -15,8 +14,8 @@ export const STALE_COUNT_DAYS = 7;
 export const STALE_CLAIM_DAYS = 45;
 /** Tied bags lying in the godown longer than this should go out. */
 export const STALE_READY_DAYS = 14;
-/** "Almost full" open bag: this many pieces or fewer short of BAG_CAPACITY. */
-export const NEAR_FULL = 100;
+/** An open bag still not tied after this many days is pointed out. */
+export const STALE_OPEN_DAYS = 10;
 
 /** Uncounted bags, oldest first -- the order the count list works in. */
 export function uncountedOldestFirst(collections: CollectionBag[], companyId: string | "all" = "all") {
@@ -30,8 +29,9 @@ export function staleUncounted(collections: CollectionBag[]) {
 }
 
 /**
- * Bags still being filled in the godown (under 700 pieces), ₹ low to high,
- * oldest number first. Counted pieces go straight into these.
+ * Bags still being filled in the godown (one per company and MRP, no piece
+ * limit), ₹ low to high, oldest number first. Counted pieces go straight
+ * into these until a manager ties them.
  */
 export function openBags(sortedBags: SortedBag[], companyId: string | "all" = "all") {
   return sortedBags
@@ -54,12 +54,12 @@ export function sumValue(bags: SortedBag[]) {
   return bags.reduce((sum, b) => sum + bagValue(b), 0);
 }
 
-/** One row per MRP: full bags and the part-filled ones listed apart. */
+/** One row per MRP: how many bags, pieces and ₹. */
 export function mrpBreakdown(bags: SortedBag[]) {
-  const rows = new Map<string, { mrp: number; full: boolean; bags: number; pieces: number; value: number }>();
+  const rows = new Map<number, { mrp: number; bags: number; pieces: number; value: number }>();
   bags.forEach((b) => {
-    const key = `${b.mrp}:${b.isFull ? "f" : "p"}`;
-    const row = rows.get(key) ?? { mrp: b.mrp, full: b.isFull, bags: 0, pieces: 0, value: 0 };
+    const key = b.mrp;
+    const row = rows.get(key) ?? { mrp: b.mrp, bags: 0, pieces: 0, value: 0 };
     row.bags += 1;
     row.pieces += b.pieceCount;
     row.value += bagValue(b);
@@ -133,7 +133,6 @@ export function averageDaysToPay(dispatches: Dispatch[], from: string, to = toda
   return Math.round(paid.reduce((s, d) => s + daysBetween(d.sentDate, d.settledDate!), 0) / paid.length);
 }
 
-export { BAG_CAPACITY };
 
 /* ------------------------------------------------------------------ */
 /* Money per party                                                     */

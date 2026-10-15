@@ -40,11 +40,8 @@ function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
 
 const sentIds = (bags: SortedBag[]) => new Set(bags.filter((b) => b.status === "dispatched").map((b) => b.id));
 
-/** Bags that just turned full are stamped with whoever filled them. */
-function stampTied(bags: SortedBag[], before: SortedBag[], actor?: string) {
-  const was = new Map(before.map((b) => [b.id, b.status]));
-  return bags.map((b) => (b.status === "ready" && was.get(b.id) !== "ready" ? { ...b, tiedBy: actor } : b));
-}
+/** A bag tied by hand: full, closed, ready for the factory. */
+const tied = (b: SortedBag, env: OpEnv): SortedBag => ({ ...b, status: "ready", isFull: true, tiedBy: env.actor, tiedDate: env.today });
 
 export const OPS = {
   /** The built-in companies, products, parties and users, once, into an empty database. */
@@ -151,14 +148,16 @@ export const OPS = {
       }));
 
     // A re-count first takes the old pieces back out of their bags. Bags
-    // left empty are kept for a moment, so the new count refills the same
-    // numbers that may already be written on the bags.
+    // left empty are kept for a moment, and each MRP goes back into the bag
+    // it was in (even if tied since): the goods are already in that bag.
+    const old = d.countLines.filter((l) => l.collectionId === collectionId && l.bagId);
+    const preferred = new Map(old.map((l) => [`${l.companyId}:${l.mrp}`, l.bagId!]));
     const rest = d.countLines.filter((l) => l.collectionId !== collectionId);
     const emptied = refreshBags(d.sortedBags, rest, false);
     const seq = { ...d.seq };
-    const { lines: placed, bags } = putIntoBags(fresh, emptied, d.companies, env.today, seq, collectionId);
+    const { lines: placed, bags } = putIntoBags(fresh, emptied, d.companies, env.today, seq, collectionId, preferred);
     const allLines = [...rest, ...placed];
-    const sortedBags = stampTied(refreshBags(bags, allLines), d.sortedBags, env.actor);
+    const sortedBags = refreshBags(bags, allLines);
 
     return [
       {
@@ -174,11 +173,38 @@ export const OPS = {
     ];
   },
 
-  /** Closes a company's open bags part-filled, for today's factory run. Returns the bags closed. */
+  /**
+   * A manager ties a bag by hand when it is full -- there is no piece limit,
+   * as a full bag holds a different number of pieces for each product. The
+   * next goods of that MRP then open a new numbered bag. False if the bag is
+   * not open or is empty.
+   */
+  tieBag(d: AppData, env: OpEnv, bagId: string): Result<boolean> {
+    const bag = d.sortedBags.find((b) => b.id === bagId);
+    if (!bag || bag.status !== "open" || bag.pieceCount <= 0) return [d, false];
+    return [{ ...d, sortedBags: d.sortedBags.map((b) => (b.id === bagId ? tied(b, env) : b)) }, true];
+  },
+
+  /**
+   * Opens a bag tied by mistake, so it is filled again. Refused (false) once
+   * it has gone to the factory, or while another bag of the same MRP is open
+   * -- two open bags of one MRP would leave staff unsure which to fill.
+   */
+  untieBag(d: AppData, _env: OpEnv, bagId: string): Result<boolean> {
+    const bag = d.sortedBags.find((b) => b.id === bagId);
+    if (!bag || bag.status !== "ready") return [d, false];
+    if (d.sortedBags.some((b) => b.status === "open" && b.companyId === bag.companyId && b.mrp === bag.mrp)) return [d, false];
+    return [
+      { ...d, sortedBags: d.sortedBags.map((b) => (b.id === bagId ? { ...b, status: "open", isFull: false, tiedBy: undefined, tiedDate: undefined, closedEarly: undefined } : b)) },
+      true,
+    ];
+  },
+
+  /** Ties every open bag of a company at once, e.g. before a factory run. Returns the bags tied. */
   closeOpenBags(d: AppData, env: OpEnv, companyId: string): Result<SortedBag[]> {
     const closing = d.sortedBags.filter((b) => b.status === "open" && b.companyId === companyId && b.pieceCount > 0);
     if (closing.length === 0) return [d, []];
-    const closed = new Map(closing.map((b) => [b.id, { ...b, status: "ready" as const, closedEarly: true, tiedBy: env.actor }]));
+    const closed = new Map(closing.map((b) => [b.id, tied(b, env)]));
     return [{ ...d, sortedBags: d.sortedBags.map((b) => closed.get(b.id) ?? b) }, Array.from(closed.values())];
   },
 
@@ -272,7 +298,7 @@ export const OPS = {
       const allLines = [...d.countLines, ...placed];
       next.seq = seq;
       next.countLines = allLines;
-      next.sortedBags = stampTied(refreshBags(bags, allLines), d.sortedBags, env.actor);
+      next.sortedBags = refreshBags(bags, allLines);
     }
     return [next, created];
   },

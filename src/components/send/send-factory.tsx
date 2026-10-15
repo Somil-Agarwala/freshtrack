@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { daysSince, inr, lakhShort, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { BAG_CAPACITY, OWN_GODOWN, mrpBreakdown, partySharesForBags, readyBags, sumValue } from "@/lib/pipeline";
+import { OWN_GODOWN, mrpBreakdown, partySharesForBags, readyBags, sumValue } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -73,7 +73,7 @@ export function SendFactory() {
         {!company || bags.length === 0 ? (
           <div className="rounded-[20px] border border-line bg-surface px-4 py-10 text-center">
             <p className="font-display text-2xl font-extrabold">{t("भेजने को कोई बैग नहीं", "No bags to send")}</p>
-            <p className="mt-1 text-ink-dim">{t("बैग 700 पीस से भरते ही या आधे भरे बंद करने पर यहाँ दिखेंगे", "Bags show up here once full at 700, or closed part-filled")}</p>
+            <p className="mt-1 text-ink-dim">{t("मैनेजर जब भरा बैग बाँधता है, वह यहाँ दिखता है", "Bags show up here once a manager ties them")}</p>
           </div>
         ) : (
           <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr] lg:items-start">
@@ -92,12 +92,12 @@ export function SendFactory() {
               </p>
               <div className="flex flex-col gap-2">
                 {mrpBreakdown(selected).map((row) => (
-                  <div key={`${row.mrp}-${row.full}`} className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-2.5">
+                  <div key={row.mrp} className="flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-2.5">
                     <MrpCircle mrp={row.mrp} size={44} />
                     <span className="flex-1 text-[17px] font-bold">
                       {row.bags} {t("बैग", row.bags === 1 ? "bag" : "bags")}{" "}
                       <span className="font-medium text-ink-faint">
-                        {row.full ? `× ${BAG_CAPACITY}` : `· ${num(row.pieces)} ${t("पीस", "pcs")} (${t("आधा", "part-filled")})`}
+                        · {num(row.pieces)} {t("पीस", "pcs")}
                       </span>
                     </span>
                     <span className="text-[17px] font-bold">{inr(row.value)}</span>

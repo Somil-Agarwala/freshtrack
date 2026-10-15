@@ -18,7 +18,7 @@ import { OwnGodownBlock } from "@/components/piles/piles-board";
 
 type Filter = "open" | "ready" | "dispatched" | "all";
 
-/** Every tied 700-piece bag: still in the godown, or gone to the factory. */
+/** Every numbered bag: being filled, tied in the godown, or gone to the factory. */
 export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
   const { t } = useLang();
   const { sortedBags, companies, collections, distributors, countLines, products, dispatches } = useStore();
@@ -54,7 +54,7 @@ export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
 
   return (
     <Screen width="wide">
-      <ListHeader tone="pile" icon={<LayersIcon size={26} />} title={t("नंबर वाले बैग", "Numbered bags")} subtitle={t("700 पीस के बैग: भर रहे, बँधे या फैक्ट्री गए", "700-piece bags: filling, tied or sent")}>
+      <ListHeader tone="pile" icon={<LayersIcon size={26} />} title={t("नंबर वाले बैग", "Numbered bags")} subtitle={t("MRP के हिसाब से बैग: भर रहे, बँधे या फैक्ट्री गए", "Bags by MRP: filling, tied or sent")}>
         <CompanyTabs companies={companies.filter((c) => sortedBags.some((b) => b.companyId === c.id))} value={companyId} onChange={setCompanyId} tone="pile" all={t("सब कंपनी", "All")} />
       </ListHeader>
       <ScreenBody className="gap-3">
@@ -85,16 +85,13 @@ export function TiedBags({ initialSearch = "" }: { initialSearch?: string }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-[17px] font-semibold">{b.bagNumber}</span>
                   <span className="block truncate text-sm text-ink-dim">
-                    {num(b.pieceCount)} {t("पीस", "pcs")}
-                    {!b.isFull && ` (${t("आधा", "part")})`} · {names.length ? `${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ""}` : "—"}
+                    {num(b.pieceCount)} {t("पीस", "pcs")} · {names.length ? `${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ""}` : "—"}
                   </span>
                 </span>
                 {b.status === "open" ? (
-                  <Pill tone="pile">
-                    {num(b.pieceCount)}/700
-                  </Pill>
+                  <Pill tone="pile">{t("भर रहा", "filling")}</Pill>
                 ) : b.status === "ready" ? (
-                  <Pill tone={daysSince(b.createdDate) >= 14 ? "danger" : "factory"}>{t(`${daysSince(b.createdDate)} दिन से`, `${daysSince(b.createdDate)} days`)}</Pill>
+                  <Pill tone={daysSince(b.tiedDate ?? b.createdDate) >= 14 ? "danger" : "factory"}>{t(`${daysSince(b.tiedDate ?? b.createdDate)} दिन से`, `${daysSince(b.tiedDate ?? b.createdDate)} days`)}</Pill>
                 ) : (
                   <Pill tone="money" className="max-w-[40%] truncate">
                     {run?.dispatchNumber.replace(/-\d{4}-/, "-") ?? t("भेजा", "Sent")}
@@ -151,9 +148,9 @@ function BagSheet({ bag, partyNames, onClose }: { bag: SortedBag; partyNames: st
               </Link>
             </>
           ) : bag.status === "open" ? (
-            t(`अभी भर रहा है — ${num(700 - bag.pieceCount)} पीस और आएँगे`, `Still being filled — ${num(700 - bag.pieceCount)} more pieces to go`)
+            t(`अभी भर रहा है — ${num(bag.pieceCount)} पीस, भरने पर मैनेजर बाँधेगा`, `Still being filled — ${num(bag.pieceCount)} pieces, a manager ties it when full`)
           ) : (
-            t(`${daysSince(bag.createdDate)} दिन से गोदाम में, भेजने को तैयार`, `In the godown for ${daysSince(bag.createdDate)} days, ready to send`)
+            t(`${daysSince(bag.tiedDate ?? bag.createdDate)} दिन से बँधा, भेजने को तैयार`, `Tied ${daysSince(bag.tiedDate ?? bag.createdDate)} days ago, ready to send`)
           )}
         </span>
       </div>

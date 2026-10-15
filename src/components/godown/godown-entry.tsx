@@ -151,7 +151,7 @@ function Details({ companyId, productId, source }: { companyId: string; productI
   const photoInput = useRef<HTMLInputElement>(null);
 
   // Own-godown damage is claimed from the factory, so it goes into the
-  // numbered 700-piece bags -- which needs it in pieces.
+  // numbered bags -- which needs it in pieces.
   const own = source === "own_inventory";
   const inPieces = ["pieces", "packs", product.unit, `${product.unit}s`].includes(unit);
   const inCartons = unit === "cartons";

@@ -4,13 +4,14 @@ import { useState } from "react";
 import { speak } from "@/lib/device";
 import { num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { BAG_CAPACITY } from "@/lib/pipeline";
+import { useSession } from "@/lib/session";
+import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Company, CountLine, SortedBag } from "@/types";
 import { MrpCircle } from "@/components/ft/brand";
 import { CheckIcon, PrinterIcon, SackIcon } from "@/components/ft/icons";
 import { PrintLabel, PrintSheet } from "@/components/ft/print-sheet";
-import { PileBar, softButton } from "@/components/ft/screen";
+import { softButton } from "@/components/ft/screen";
 
 /** HLD-M10-2026-0007 → ["HLD-M10-2026-", "0007"]: the serial is what people look at. */
 export function splitBagNumber(bagNumber: string): [string, string] {
@@ -38,7 +39,8 @@ export interface BagCard {
   before: number;
   /** This source's pieces opened the bag: write the number on a fresh bag. */
   isNew: boolean;
-  full: boolean;
+  /** Already tied (a re-count putting pieces back into a tied bag). */
+  tied: boolean;
 }
 
 /**
@@ -56,29 +58,32 @@ export function bagCards(sourceKey: string, lines: CountLine[], sortedBags: Sort
         .map(([productId, pieces]) => ({ productId, pieces }))
         .sort((a, b) => b.pieces - a.pieces);
       const adding = items.reduce((s, i) => s + i.pieces, 0);
-      return { bag, items, adding, before: bag.pieceCount - adding, isNew: bag.openedFor === sourceKey, full: bag.pieceCount >= BAG_CAPACITY };
+      return { bag, items, adding, before: bag.pieceCount - adding, isNew: bag.openedFor === sourceKey, tied: bag.status !== "open" };
     })
     .sort((a, b) => a.bag.mrp - b.bag.mrp || a.bag.bagNumber.localeCompare(b.bag.bagNumber));
 }
 
 /** Reads the directions aloud, bag by bag. */
 export function speakDirections(cards: BagCard[], nameOf: (id: string) => string, lang: "hi" | "en") {
-  const parts = cards.map(({ bag, items, isNew, full }) => {
+  const parts = cards.map(({ bag, items, isNew }) => {
     const what = items.map((i) => `${nameOf(i.productId)} ${i.pieces}`).join(", ");
     return lang === "hi"
-      ? `${isNew ? "नया बैग लें, उस पर नंबर लिखें" : "पहले से खुला बैग"} ${bag.bagNumber}। इसमें डालें: ${what}।${full ? " बैग भर गया, मुँह बाँध दें।" : ""}`
-      : `${isNew ? "Take a new bag and write" : "Open bag"} ${bag.bagNumber}. Put in: ${what}.${full ? " The bag is full, tie it." : ""}`;
+      ? `${isNew ? "नया बैग लें, उस पर नंबर लिखें" : "पहले से खुला बैग"} ${bag.bagNumber}। इसमें डालें: ${what}।`
+      : `${isNew ? "Take a new bag and write" : "Open bag"} ${bag.bagNumber}. Put in: ${what}.`;
   });
   speak(parts.join(" "), lang);
 }
 
 /**
  * One card per numbered bag: the number to write or look for, the items and
- * pieces to put in, how full the bag now is, and a tick for when it is done.
+ * pieces to put in, how many pieces the bag now holds, a button to tie it
+ * when it is full, and a tick for when it is done.
  * Includes the sticker print for these bags.
  */
 export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; company?: Company; nameOf: (id: string) => string }) {
   const { t, lang } = useLang();
+  const { can } = useSession();
+  const { tieBag } = useStore();
   const [done, setDone] = useState<string[]>([]);
   const newBags = cards.filter((c) => c.isNew).length;
   const allDone = cards.length > 0 && cards.every((c) => done.includes(c.bag.id));
@@ -117,7 +122,7 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
         )}
       </p>
 
-      {cards.map(({ bag, items, adding, before, isNew, full }) => {
+      {cards.map(({ bag, items, adding, before, isNew, tied }) => {
         if (done.includes(bag.id)) {
           return (
             <button key={bag.id} type="button" onClick={() => toggle(bag.id)} className="flex items-center gap-3 rounded-[20px] border border-money-line bg-money-tint px-3.5 py-3 text-left">
@@ -128,7 +133,7 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
                 <BagNumber value={bag.bagNumber} className="block truncate text-[19px] text-money-note" />
                 <span className="text-sm text-money-mute">
                   {num(adding)} {t("पीस डाल दिए", "pcs put in")}
-                  {full && ` · ${t("बाँध दिया", "tied")}`}
+                  {tied && ` · ${t("बँधा", "tied")}`}
                 </span>
               </span>
               <span className="shrink-0 text-sm font-bold text-money-mute">{t("वापस खोलें", "Undo")}</span>
@@ -137,12 +142,16 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
         }
 
         return (
-          <section key={bag.id} className={cn("flex flex-col gap-3 rounded-[20px] p-3.5", full ? "border-2 border-pile bg-pile-deep" : "border border-line bg-surface")}>
+          <section key={bag.id} className={cn("flex flex-col gap-3 rounded-[20px] p-3.5", tied ? "border-2 border-pile bg-pile-deep" : "border border-line bg-surface")}>
             <div className="flex items-start gap-3">
               <MrpCircle mrp={bag.mrp} size={52} />
               <span className="min-w-0 flex-1">
                 <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-[13px] font-extrabold", isNew ? "bg-count text-count-ink" : "bg-pile-tint text-pile-soft")}>
-                  {isNew ? t("नया बैग — यह नंबर लिखें", "New bag — write this number") : t(`पहले से खुला बैग · ${num(before)} पीस`, `Already open · ${num(before)} pcs in it`)}
+                  {isNew
+                    ? t("नया बैग — यह नंबर लिखें", "New bag — write this number")
+                    : tied
+                      ? t(`बँधा बैग · ${num(before)} पीस`, `Tied bag · ${num(before)} pcs in it`)
+                      : t(`पहले से खुला बैग · ${num(before)} पीस`, `Already open · ${num(before)} pcs in it`)}
                 </span>
                 <BagNumber value={bag.bagNumber} className="mt-1.5 block break-all text-[30px]" />
               </span>
@@ -168,24 +177,27 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
               </ul>
             </div>
 
-            <div>
-              <PileBar existing={before} adding={adding} capacity={BAG_CAPACITY} height={20} label={`${before} already, ${adding} now, of ${BAG_CAPACITY}`} />
-              <div className="mt-1.5 flex justify-between text-sm text-ink-dim">
-                <span>
-                  {t("बैग में अब", "Bag now")} <b className="text-ink">{num(bag.pieceCount)}</b>
-                </span>
-                <span>{BAG_CAPACITY}</span>
-              </div>
-            </div>
+            <p className="flex items-baseline justify-between gap-3 text-[15px] text-ink-dim">
+              <span>{t("बैग में अब कुल", "Now in the bag")}</span>
+              <b className="font-display text-xl text-ink">
+                {num(bag.pieceCount)} {t("पीस", "pcs")}
+              </b>
+            </p>
 
-            {full ? (
+            {!tied && can("tieSend") && (
+              <button
+                type="button"
+                onClick={() => tieBag(bag.id)}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-dashed border-pile-line px-3 py-2 text-[15px] font-bold text-pile-soft hover:bg-pile-tint"
+              >
+                <SackIcon size={20} className="shrink-0" />
+                {t("बैग भर गया? मुँह बाँधें", "Bag full? Tie it")}
+              </button>
+            )}
+            {tied && (
               <p className="flex items-center gap-2 rounded-xl bg-pile px-3 py-2 text-base font-bold text-pile-ink">
                 <SackIcon size={20} className="shrink-0" />
-                {t(`बैग भर गया (${BAG_CAPACITY}) — मुँह बाँध दें, फैक्ट्री के लिए तैयार`, `Bag full (${BAG_CAPACITY}) — tie it, it is ready for the factory`)}
-              </p>
-            ) : (
-              <p className="text-base font-semibold text-ink-dim">
-                {t(`बैग खुला रखें — ${num(BAG_CAPACITY - bag.pieceCount)} पीस और आएँगे`, `Keep the bag open — ${num(BAG_CAPACITY - bag.pieceCount)} more pieces will go in`)}
+                {t("बैग बँध चुका — फैक्ट्री के लिए तैयार", "Bag is tied — ready for the factory")}
               </p>
             )}
 
@@ -195,7 +207,7 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
               className="flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-money font-display text-lg font-extrabold text-money hover:bg-money-tint"
             >
               <CheckIcon size={22} />
-              {full ? t("डाल दिया और बाँध दिया", "Put in and tied") : t("डाल दिया", "Put in")}
+              {t("डाल दिया", "Put in")}
             </button>
           </section>
         );
@@ -220,7 +232,7 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
             lines={[
               `${company?.name ?? ""} · MRP ₹${bag.mrp}`,
               (bag.items ?? []).map((i) => `${nameOf(i.productId)} ${num(i.pieces)}`).join(" · "),
-              `${num(bag.pieceCount)} / ${BAG_CAPACITY} pcs${bag.own?.pieces ? ` · own godown ${num(bag.own.pieces)}` : ""}`,
+              `${num(bag.pieceCount)} pcs${bag.own?.pieces ? ` · own godown ${num(bag.own.pieces)}` : ""}`,
             ]}
           />
         ))}

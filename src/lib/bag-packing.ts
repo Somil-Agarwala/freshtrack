@@ -1,8 +1,6 @@
 import { lineValue } from "./claim";
 import type { BagContent, BagItem, Company, CountLine, SortedBag } from "@/types";
 
-/** Pieces per sorted bag. Change here and every projection follows. */
-export const BAG_CAPACITY = 700;
 
 /**
  * Last sequence number issued per company, per year.
@@ -128,7 +126,7 @@ export function issueBagNumber(companies: Company[], companyId: string, mrp: num
 /** Open bags of one company + MRP, oldest number first: the order they are filled. */
 function openFor(bags: SortedBag[], companyId: string, mrp: number): SortedBag[] {
   return bags
-    .filter((b) => b.status === "open" && b.companyId === companyId && b.mrp === mrp && b.pieceCount < BAG_CAPACITY)
+    .filter((b) => b.status === "open" && b.companyId === companyId && b.mrp === mrp)
     .sort((a, b) => a.bagNumber.localeCompare(b.bagNumber));
 }
 
@@ -136,11 +134,14 @@ function openFor(bags: SortedBag[], companyId: string, mrp: number): SortedBag[]
  * Puts freshly counted pieces straight into numbered bags, the moment the
  * count is saved, so the counter can be told "these items go in this bag".
  *
- * Each company + MRP has an open bag being filled. Pieces top up the oldest
- * open bag first; when a bag reaches BAG_CAPACITY it is full (ready for the
- * factory) and the next pieces go into a newly numbered bag. A counted line
- * that does not fit is split across bags, so every piece belongs to exactly
- * one bag and each bag knows its items.
+ * Bags are kept apart by company and MRP. Each company + MRP has one open
+ * bag being filled, with no piece limit: how many pieces make a full bag
+ * depends on the product, so a manager ties the bag by hand when it is
+ * full (tieBag). The next pieces of that MRP then open a newly numbered bag.
+ *
+ * `preferred` (company:mrp → bag id) sends a re-counted pickup's pieces back
+ * into the bag they were already in, even if it has been tied since -- the
+ * goods are physically in that bag; only the numbers are being corrected.
  *
  * Returns the placed lines (each with its bagId) and the whole bag list.
  * Piece counts are updated here; items, parties and value are filled in by
@@ -152,42 +153,33 @@ export function putIntoBags(
   companies: Company[],
   dateStr: string,
   sequence: SequenceState,
-  openedFor: string
+  openedFor: string,
+  preferred?: Map<string, string>
 ): { lines: CountLine[]; bags: SortedBag[] } {
   const next = bags.map((b) => ({ ...b }));
   const placed: CountLine[] = [];
 
   lines.forEach((line) => {
-    let left = line.quantity;
-    let part = 0;
-    while (left > 0) {
-      let bag = openFor(next, line.companyId, line.mrp)[0];
-      if (!bag) {
-        const bagNumber = issueBagNumber(companies, line.companyId, line.mrp, dateStr, sequence);
-        bag = {
-          id: `sb-${bagNumber}`,
-          bagNumber,
-          companyId: line.companyId,
-          mrp: line.mrp,
-          pieceCount: 0,
-          isFull: false,
-          createdDate: dateStr,
-          status: "open",
-          sourceCollectionIds: [],
-          openedFor,
-        };
-        next.push(bag);
-      }
-      const take = Math.min(left, BAG_CAPACITY - bag.pieceCount);
-      placed.push({ ...line, id: part === 0 && take === line.quantity ? line.id : `${line.id}-${part}`, quantity: take, bagId: bag.id, packed: true });
-      bag.pieceCount += take;
-      if (bag.pieceCount >= BAG_CAPACITY) {
-        bag.status = "ready";
-        bag.isFull = true;
-      }
-      left -= take;
-      part += 1;
+    const wanted = preferred?.get(`${line.companyId}:${line.mrp}`);
+    let bag = (wanted && next.find((b) => b.id === wanted && b.status !== "dispatched")) || openFor(next, line.companyId, line.mrp)[0];
+    if (!bag) {
+      const bagNumber = issueBagNumber(companies, line.companyId, line.mrp, dateStr, sequence);
+      bag = {
+        id: `sb-${bagNumber}`,
+        bagNumber,
+        companyId: line.companyId,
+        mrp: line.mrp,
+        pieceCount: 0,
+        isFull: false,
+        createdDate: dateStr,
+        status: "open",
+        sourceCollectionIds: [],
+        openedFor,
+      };
+      next.push(bag);
     }
+    placed.push({ ...line, bagId: bag.id, packed: true });
+    bag.pieceCount += line.quantity;
   });
 
   return { lines: placed, bags: next };
@@ -197,12 +189,11 @@ export function putIntoBags(
  * Works out each bag's pieces, items, parties and claim value from the
  * counted lines inside it. Run after any change to the lines.
  *
- * - A full open bag becomes ready; a full bag that lost pieces (its pickup
- *   was re-counted or deleted) opens again to be topped up, unless it was
- *   closed part-filled on purpose before a factory run.
+ * - A bag's status only changes by hand (tie / untie) or by sending it to
+ *   the factory; pieces coming or going never tie or open a bag.
  * - Bags already sent to the factory are never touched.
- * - With `dropEmpty`, open bags left with no pieces are removed. Their
- *   numbers are not reused.
+ * - With `dropEmpty`, bags left with no pieces are removed. Their numbers
+ *   are not reused.
  */
 export function refreshBags(bags: SortedBag[], lines: CountLine[], dropEmpty = true): SortedBag[] {
   const byBag = new Map<string, CountLine[]>();
@@ -233,18 +224,12 @@ export function refreshBags(bags: SortedBag[], lines: CountLine[], dropEmpty = t
     });
     const items: BagItem[] = Array.from(byProduct, ([productId, pieces]) => ({ productId, pieces })).sort((a, b) => b.pieces - a.pieces);
     const contents: BagContent[] = Array.from(byCollection, ([collectionId, c]) => ({ collectionId, pieces: c.pieces, value: Math.round(c.value * 100) / 100 }));
-    const isFull = pieceCount >= BAG_CAPACITY;
-
-    let status = bag.status;
-    if (status === "open" && isFull) status = "ready";
-    if (status === "ready" && !isFull && !bag.closedEarly) status = "open";
 
     return [
       {
         ...bag,
-        status,
         pieceCount,
-        isFull,
+        isFull: bag.status !== "open",
         items,
         contents,
         sourceCollectionIds: contents.map((c) => c.collectionId),

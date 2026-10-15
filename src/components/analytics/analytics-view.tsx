@@ -345,19 +345,9 @@ export function AnalyticsView({
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Metric label="Bags packed" value={String(fill.bags)} />
-            <Metric
-              label="Average fill"
-              value={`${fill.avgFillPct.toFixed(0)}%`}
-              hint={`Capacity is ${formatNumber(700)} per bag`}
-              tone={fill.avgFillPct >= 90 ? "good" : fill.avgFillPct >= 70 ? "warning" : "critical"}
-            />
-            <Metric label="Part-filled bags" value={String(fill.partial)} hint={`${fill.full} full`} />
-            <Metric
-              label="Unused capacity"
-              value={`${formatNumber(fill.wastedPieces)} pcs`}
-              hint="Space paid for but not filled"
-              tone={fill.wastedPieces > 700 ? "warning" : "default"}
-            />
+            <Metric label="Pieces per tied bag" value={formatNumber(Math.round(fill.avgPieces))} hint={fill.bags ? `${formatNumber(fill.minPieces)} to ${formatNumber(fill.maxPieces)}` : undefined} />
+            <Metric label="Days a bag stays open" value={fill.avgDaysOpen.toFixed(1)} hint="From first goods in to tied" />
+            <Metric label="Bags open now" value={String(d.sortedBags.filter((b) => b.status === "open").length)} hint="Being filled in the godown" />
           </div>
 
           <Panel title="Counting backlog" hint="Uncounted bags by how long they have been waiting. Anything in 15+ days is stock you cannot claim yet.">

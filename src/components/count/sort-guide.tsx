@@ -13,9 +13,10 @@ import { BagDirections, bagCards, speakDirections } from "./bag-directions";
 /**
  * Straight after counting: the numbered bags this pickup's goods go into.
  * Pieces were put into bags the moment the count was saved -- the open bag
- * of each MRP topped up, a new numbered bag opened when one filled -- so
- * this screen only has to say, bag by bag: this number, these items, this
- * many pieces. Staff write new numbers on fresh bags, fill them, tick each.
+ * of each MRP topped up, or a new numbered bag opened if that MRP had none
+ * -- so this screen only has to say, bag by bag: this number, these items,
+ * this many pieces. Staff write new numbers on fresh bags, fill them, tick
+ * each, and tie a bag when they see it is full.
  */
 export function SortGuide({ collectionId }: { collectionId: string }) {
   const { t, lang } = useLang();

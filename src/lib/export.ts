@@ -60,7 +60,7 @@ export function exportSortedBags({ bags, collections, countLines, distributors, 
       "MRP (INR)": bag.mrp,
       Pieces: bag.pieceCount,
       "Claim Value (INR)": bagValue(bag),
-      "Full Bag": bag.isFull ? "Yes" : "Part-filled",
+      Tied: bag.tiedDate ? formatDate(bag.tiedDate) : bag.status === "open" ? "Not yet" : "Yes",
       Status: SORTED_BAG_STATUS_LABELS[bag.status],
       Created: formatDate(bag.createdDate),
       "Own Godown Pieces": bag.own?.pieces ?? 0,
@@ -310,10 +310,10 @@ export function exportAnalytics(d: AnalyticsDataset) {
   const f = A.bagFill(d);
   const operations: Row[] = [
     { Metric: "Bags packed", Value: f.bags },
-    { Metric: "Full bags", Value: f.full },
-    { Metric: "Part-filled bags", Value: f.partial },
-    { Metric: "Average fill %", Value: Number(f.avgFillPct.toFixed(1)) },
-    { Metric: "Unused capacity (pieces)", Value: f.wastedPieces },
+    { Metric: "Average pieces per tied bag", Value: Math.round(f.avgPieces) },
+    { Metric: "Fewest pieces in a tied bag", Value: f.minPieces },
+    { Metric: "Most pieces in a tied bag", Value: f.maxPieces },
+    { Metric: "Average days a bag stays open", Value: Number(f.avgDaysOpen.toFixed(1)) },
     { Metric: "Mean rough-count error %", Value: Number(A.countAccuracy(d).meanAbsPct.toFixed(1)) },
   ];
 

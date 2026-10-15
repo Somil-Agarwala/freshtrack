@@ -93,7 +93,7 @@ export interface DamageRecord {
 /*                                                                     */
 /*   CollectionBag (sealed, uncounted)                                 */
 /*        -> counted -> CountLine[] (SKU x quantity)                   */
-/*        -> packed  -> SortedBag[] (700 pieces, one MRP tier each)     */
+/*        -> packed  -> SortedBag[] (one MRP each, tied by hand)        */
 /*        -> sent    -> Dispatch (the factory run)                     */
 /* ------------------------------------------------------------------ */
 
@@ -153,8 +153,8 @@ export interface CountLine {
 }
 
 /**
- * open: being filled in the godown, under BAG_CAPACITY pieces;
- * ready: full (or closed part-filled before a run), waiting for the factory;
+ * open: being filled in the godown (no piece limit);
+ * ready: tied by a manager when full, waiting for the factory;
  * dispatched: gone to the factory.
  */
 export type SortedBagStatus = "open" | "ready" | "dispatched";
@@ -170,7 +170,7 @@ export interface SortedBag {
   companyId: string;
   mrp: number;
   pieceCount: number;
-  /** False when this is the trailing part-filled bag for its MRP tier. */
+  /** True once tied (ready or sent); false while still being filled. */
   isFull: boolean;
   createdDate: string;
   status: SortedBagStatus;
@@ -190,8 +190,9 @@ export interface SortedBag {
    * Missing on bags tied before items were recorded.
    */
   items?: BagItem[];
-  /** User who tied the bag. */
+  /** User who tied the bag, and the day. */
   tiedBy?: string;
+  tiedDate?: string;
   /** Claim value of the bag at the pieces' claim rates. Unset = pieces × MRP. */
   claimValue?: number;
   /**
@@ -201,7 +202,7 @@ export interface SortedBag {
   own?: { pieces: number; value: number };
   /** The pickup (or "godown:<record id>") whose pieces opened this bag, so its screen can say "new bag". */
   openedFor?: string;
-  /** Closed part-filled on purpose before a factory run; stays closed. */
+  /** Old data only: closed part-filled before a factory run (from when bags held 700). */
   closedEarly?: boolean;
 }
 
