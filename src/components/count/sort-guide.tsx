@@ -9,6 +9,7 @@ import { ArrowRightIcon, SpeakerIcon } from "@/components/ft/icons";
 import { EmptyCard } from "@/components/ft/kit";
 import { BigLink, Screen, ScreenBody, ScreenFooter, TaskHeader } from "@/components/ft/screen";
 import { BagDirections, bagCards, speakDirections } from "./bag-directions";
+import { PartyWhatsApp } from "./party-whatsapp";
 
 /**
  * Straight after counting: the numbered bags this pickup's goods go into.
@@ -70,6 +71,7 @@ export function SortGuide({ collectionId }: { collectionId: string }) {
       <ScreenBody className="gap-3 pt-1">
         {cards.length === 0 && <EmptyCard title={t("इस बैग में कुछ नहीं गिना गया", "Nothing was counted in this bag")} />}
         <BagDirections cards={cards} company={company} nameOf={nameOf} />
+        <PartyWhatsApp collectionId={pickup.id} />
       </ScreenBody>
 
       <ScreenFooter>

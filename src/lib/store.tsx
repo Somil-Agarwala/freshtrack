@@ -49,6 +49,8 @@ interface StoreValue {
   addCountedPickup: (input: CollectionInput, lines: CountInput) => CollectionBag | null;
   /** What the next `count` collection numbers would be, without consuming them. */
   previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => string[];
+  /** Notes that the party was sent the WhatsApp summary of these pickup bags. */
+  markPartyNotified: (ids: string[]) => void;
   /** Deletes pickups and takes their pieces back out of their bags. Not for goods already sent. */
   deleteCollections: (ids: string[]) => void;
   /**
@@ -229,6 +231,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addDistributor: (distributor: Omit<Distributor, "id" | "isActive">) => op<Distributor>("addDistributor", distributor),
       addCollections: (input: CollectionInput, bagCount: number) => op<CollectionBag[]>("addCollections", input, bagCount),
       addCountedPickup: (input: CollectionInput, lines: CountInput) => op<CollectionBag | null>("addCountedPickup", input, lines),
+      markPartyNotified: (ids: string[]) => op<void>("markPartyNotified", ids),
       deleteCollections: (ids: string[]) => op<void>("deleteCollections", ids),
       saveCount: (collectionId: string, lines: CountInput) => op<boolean>("saveCount", collectionId, lines),
       tieBag: (bagId: string) => op<boolean>("tieBag", bagId),

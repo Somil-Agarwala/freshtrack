@@ -75,8 +75,21 @@ export function speak(text: string, lang: Lang) {
   return true;
 }
 
-export function shareOnWhatsApp(text: string) {
-  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+/** An Indian mobile number as WhatsApp wants it (91XXXXXXXXXX), or null. */
+export function whatsAppNumber(phone?: string): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "").replace(/^0+/, "");
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return digits;
+  return null;
+}
+
+/**
+ * Opens WhatsApp with the message typed in. With a phone number it opens
+ * that chat directly; without one, WhatsApp asks whom to send it to.
+ */
+export function shareOnWhatsApp(text: string, phone?: string) {
+  const to = whatsAppNumber(phone);
+  window.open(`https://wa.me/${to ?? ""}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
 }
 
 /** A short message that disappears by itself. */

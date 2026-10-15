@@ -122,6 +122,8 @@ export interface CollectionBag {
    * were already counted, so there was no separate pickup step.
    */
   direct?: boolean;
+  /** The day the party was sent the WhatsApp summary of what was received. */
+  partyNotified?: string;
 }
 
 /** One counted SKU line inside a collection bag. */

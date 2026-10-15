@@ -107,6 +107,12 @@ export const OPS = {
     return [counted, counted.collections.find((c) => c.id === id) ?? null];
   },
 
+  /** Notes that the party was sent the WhatsApp summary of these pickup bags. */
+  markPartyNotified(d: AppData, env: OpEnv, ids: string[]): Result<void> {
+    const idSet = new Set(ids);
+    return [{ ...d, collections: d.collections.map((c) => (idSet.has(c.id) ? { ...c, partyNotified: env.today } : c)) }, undefined];
+  },
+
   deleteCollections(d: AppData, _env: OpEnv, ids: string[]): Result<void> {
     // Goods already sent to the factory cannot be taken back out of a claim.
     const sent = sentIds(d.sortedBags);

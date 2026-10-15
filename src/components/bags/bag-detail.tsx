@@ -16,6 +16,7 @@ import { CompanyAvatar, MrpCircle } from "@/components/ft/brand";
 import { ArrowRightIcon, CheckIcon, TrashIcon } from "@/components/ft/icons";
 import { EmptyCard, Pill } from "@/components/ft/kit";
 import { BigButton, BigLink, Screen, ScreenBody, ScreenFooter, TaskHeader } from "@/components/ft/screen";
+import { PartyWhatsApp } from "@/components/count/party-whatsapp";
 
 /** One pickup bag from arrival to the factory, with what was counted in it. */
 export function BagDetail({ collectionId }: { collectionId: string }) {
@@ -124,6 +125,8 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
             </div>
           </section>
         )}
+
+        {bag.status !== "uncounted" && <PartyWhatsApp collectionId={bag.id} />}
 
         {tied.length > 0 && (
           <section className="rounded-[20px] border border-line bg-surface px-3.5 py-3">
