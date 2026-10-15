@@ -62,7 +62,7 @@ export function GodownDone() {
                 </button>
               )}
             </div>
-            <BagDirections cards={cards} company={company} nameOf={nameOf} />
+            <BagDirections cards={cards} company={company} nameOf={nameOf} source={`godown:${recordId}`} />
           </>
         )}
       </ScreenBody>

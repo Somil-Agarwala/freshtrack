@@ -62,6 +62,12 @@ interface StoreValue {
   saveCount: (collectionId: string, lines: CountInput) => boolean;
   /** A manager ties a full bag by hand (no piece limit). False if it is not an open bag with pieces. */
   tieBag: (bagId: string) => boolean;
+  /**
+   * The bag filled before everything fitted: tie it with what went in, and
+   * move the pieces left outside (per item) into a new numbered bag of the
+   * same MRP. Returns the new bag, or null if refused.
+   */
+  tieBagWithLeftover: (bagId: string, leftover: { productId: string; pieces: number }[], fromSource?: string) => SortedBag | null;
   /** Opens a bag tied by mistake. False once sent, or while another bag of that MRP is open. */
   untieBag: (bagId: string) => boolean;
   /** Ties every open bag of a company at once, e.g. before a factory run. */
@@ -235,6 +241,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteCollections: (ids: string[]) => op<void>("deleteCollections", ids),
       saveCount: (collectionId: string, lines: CountInput) => op<boolean>("saveCount", collectionId, lines),
       tieBag: (bagId: string) => op<boolean>("tieBag", bagId),
+      tieBagWithLeftover: (bagId: string, leftover: { productId: string; pieces: number }[], fromSource?: string) =>
+        op<SortedBag | null>("tieBagWithLeftover", bagId, leftover, fromSource),
       untieBag: (bagId: string) => op<boolean>("untieBag", bagId),
       closeOpenBags: (companyId: string) => op<SortedBag[]>("closeOpenBags", companyId),
       deleteSortedBags: (ids: string[]) => op<void>("deleteSortedBags", ids),

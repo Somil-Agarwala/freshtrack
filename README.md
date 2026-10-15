@@ -69,8 +69,12 @@ Open http://localhost:3000.
   product, so a manager ties a bag by hand when it is full ("Bag full —
   tie it"). The next pieces of that MRP open a newly numbered bag. A bag
   tied by mistake can be opened again while no other bag of that MRP is open.
-- **Re-counts stay in their bag.** A corrected count puts each MRP's pieces
-  back into the bag they were already in, even if it has been tied.
+- **A bag can fill up mid-way.** Tying asks "did everything go in?". If not,
+  staff enter how many pieces of each item were left outside; the bag is
+  tied with what fitted and those pieces move to a new numbered bag of the
+  same MRP (the pickup in hand first, latest pieces first).
+- **Re-counts stay in their bag.** Pieces already in a tied bag stay there,
+  up to the corrected count; any change goes to the bag still being filled.
 - **Traceability.** Every bag knows its items, which pickups (parties) and
   own-godown entries its pieces came from, and its claim value.
 

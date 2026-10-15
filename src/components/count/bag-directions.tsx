@@ -13,22 +13,9 @@ import { CheckIcon, PrinterIcon, SackIcon } from "@/components/ft/icons";
 import { PrintLabel, PrintSheet } from "@/components/ft/print-sheet";
 import { softButton } from "@/components/ft/screen";
 
-/** HLD-M10-2026-0007 → ["HLD-M10-2026-", "0007"]: the serial is what people look at. */
-export function splitBagNumber(bagNumber: string): [string, string] {
-  const m = bagNumber.match(/^(.*-)(\d+)$/);
-  return m ? [m[1], m[2]] : ["", bagNumber];
-}
-
-/** A bag number with its serial large, as it should be written on the bag. */
-export function BagNumber({ value, className }: { value: string; className?: string }) {
-  const [head, serial] = splitBagNumber(value);
-  return (
-    <span className={cn("font-mono font-semibold leading-none tracking-[0.5px]", className)}>
-      <span className="text-[0.62em] opacity-75">{head}</span>
-      <span>{serial}</span>
-    </span>
-  );
-}
+export { BagNumber, splitBagNumber } from "@/components/ft/bag-number";
+import { BagNumber } from "@/components/ft/bag-number";
+import { TieSheet } from "@/components/piles/tie-sheet";
 
 export interface BagCard {
   bag: SortedBag;
@@ -80,11 +67,15 @@ export function speakDirections(cards: BagCard[], nameOf: (id: string) => string
  * when it is full, and a tick for when it is done.
  * Includes the sticker print for these bags.
  */
-export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; company?: Company; nameOf: (id: string) => string }) {
+export function BagDirections({ cards, company, nameOf, source }: { cards: BagCard[]; company?: Company; nameOf: (id: string) => string; source?: string }) {
   const { t, lang } = useLang();
   const { can } = useSession();
-  const { tieBag } = useStore();
+  const { sortedBags } = useStore();
   const [done, setDone] = useState<string[]>([]);
+  const [tying, setTying] = useState<string | null>(null);
+  const [movedTo, setMovedTo] = useState<string | null>(null);
+  const tyingBag = sortedBags.find((b) => b.id === tying);
+  const movedBag = sortedBags.find((b) => b.id === movedTo);
   const newBags = cards.filter((c) => c.isNew).length;
   const allDone = cards.length > 0 && cards.every((c) => done.includes(c.bag.id));
   const toggle = (id: string) => setDone((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -93,6 +84,12 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
 
   return (
     <>
+      {movedBag && (
+        <p role="status" className="rounded-2xl border-2 border-count bg-count-tint p-3.5 text-base font-bold leading-snug text-count-note">
+          {t("बचा माल नए बैग में डालें — खाली बैग पर यह नंबर लिखें:", "Put the left-over goods in a new bag — write this number on it:")}
+          <BagNumber value={movedBag.bagNumber} className="mt-1 block text-[26px] text-ink" />
+        </p>
+      )}
       <p className="text-base leading-[1.35] text-ink-soft">
         {lang === "hi" ? (
           <>
@@ -187,7 +184,7 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
             {!tied && can("tieSend") && (
               <button
                 type="button"
-                onClick={() => tieBag(bag.id)}
+                onClick={() => setTying(bag.id)}
                 className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-dashed border-pile-line px-3 py-2 text-[15px] font-bold text-pile-soft hover:bg-pile-tint"
               >
                 <SackIcon size={20} className="shrink-0" />
@@ -223,6 +220,18 @@ export function BagDirections({ cards, company, nameOf }: { cards: BagCard[]; co
         <PrinterIcon size={22} />
         {t(`${cards.length} बैग के स्टिकर छापें`, `Print stickers for ${cards.length} bag${cards.length > 1 ? "s" : ""}`)}
       </button>
+
+      {tyingBag && (
+        <TieSheet
+          bag={tyingBag}
+          source={source}
+          nameOf={nameOf}
+          onClose={() => setTying(null)}
+          onTied={(moved) => {
+            if (moved) setMovedTo(moved.id);
+          }}
+        />
+      )}
 
       <PrintSheet>
         {cards.map(({ bag }) => (

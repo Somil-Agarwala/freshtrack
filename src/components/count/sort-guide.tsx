@@ -70,7 +70,7 @@ export function SortGuide({ collectionId }: { collectionId: string }) {
 
       <ScreenBody className="gap-3 pt-1">
         {cards.length === 0 && <EmptyCard title={t("इस बैग में कुछ नहीं गिना गया", "Nothing was counted in this bag")} />}
-        <BagDirections cards={cards} company={company} nameOf={nameOf} />
+        <BagDirections cards={cards} company={company} nameOf={nameOf} source={pickup.id} />
         <PartyWhatsApp collectionId={pickup.id} />
       </ScreenBody>
 

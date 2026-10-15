@@ -1,4 +1,4 @@
-import { issueCollectionNumbers, issueDispatchNumber, putIntoBags, refreshBags } from "../bag-packing";
+import { issueBagNumber, issueCollectionNumbers, issueDispatchNumber, putIntoBags, refreshBags } from "../bag-packing";
 import { bagValue } from "../claim";
 import { partySharesForBags } from "../pipeline";
 import type { CollectionBag, Company, CountLine, DamageRecord, Dispatch, Distributor, Product, SortedBag, UserAccount } from "@/types";
@@ -153,15 +153,40 @@ export const OPS = {
         packed: false,
       }));
 
-    // A re-count first takes the old pieces back out of their bags. Bags
-    // left empty are kept for a moment, and each MRP goes back into the bag
-    // it was in (even if tied since): the goods are already in that bag.
+    // A re-count first takes the old pieces back out of their bags; bags
+    // left empty are kept for a moment so the same numbers are refilled.
+    // Pieces that were already in a TIED bag stay there (they are physically
+    // inside it), up to the corrected count; the rest go to the bag of that
+    // MRP still being filled -- the one this pickup used, if still open.
     const old = d.countLines.filter((l) => l.collectionId === collectionId && l.bagId);
-    const preferred = new Map(old.map((l) => [`${l.companyId}:${l.mrp}`, l.bagId!]));
+    const statusOf = new Map(d.sortedBags.map((b) => [b.id, b.status]));
+    const inTied = old.filter((l) => statusOf.get(l.bagId!) === "ready").map((l) => ({ ...l }));
+    const preferred = new Map<string, string>();
+    old.forEach((l) => {
+      if (statusOf.get(l.bagId!) === "open") preferred.set(`${l.companyId}:${l.mrp}`, l.bagId!);
+    });
+
+    const keptInTied: CountLine[] = [];
+    const toPlace: CountLine[] = [];
+    fresh.forEach((line) => {
+      let left = line.quantity;
+      inTied
+        .filter((o) => o.productId === line.productId && o.mrp === line.mrp && o.quantity > 0)
+        .forEach((o, k) => {
+          if (left <= 0) return;
+          const take = Math.min(left, o.quantity);
+          o.quantity -= take;
+          keptInTied.push({ ...line, id: k === 0 && take === line.quantity ? line.id : `${line.id}-t${k}`, quantity: take, bagId: o.bagId, packed: true });
+          left -= take;
+        });
+      if (left > 0) toPlace.push({ ...line, quantity: left });
+    });
+
     const rest = d.countLines.filter((l) => l.collectionId !== collectionId);
     const emptied = refreshBags(d.sortedBags, rest, false);
     const seq = { ...d.seq };
-    const { lines: placed, bags } = putIntoBags(fresh, emptied, d.companies, env.today, seq, collectionId, preferred);
+    const { lines: newlyPlaced, bags } = putIntoBags(toPlace, emptied, d.companies, env.today, seq, collectionId, preferred);
+    const placed = [...keptInTied, ...newlyPlaced];
     const allLines = [...rest, ...placed];
     const sortedBags = refreshBags(bags, allLines);
 
@@ -189,6 +214,73 @@ export const OPS = {
     const bag = d.sortedBags.find((b) => b.id === bagId);
     if (!bag || bag.status !== "open" || bag.pieceCount <= 0) return [d, false];
     return [{ ...d, sortedBags: d.sortedBags.map((b) => (b.id === bagId ? tied(b, env) : b)) }, true];
+  },
+
+  /**
+   * The bag filled up before everything assigned to it could go in. It is
+   * tied with what fitted, and the pieces left outside -- given per item --
+   * move into a new numbered bag of the same MRP, which is now the open one.
+   *
+   * Pieces are taken back from the last ones put in: `fromSource` (the
+   * pickup or godown entry being put away right now) first, then the most
+   * recent of the rest. Returns the new bag, or null if nothing changed.
+   */
+  tieBagWithLeftover(d: AppData, env: OpEnv, bagId: string, leftover: { productId: string; pieces: number }[], fromSource?: string): Result<SortedBag | null> {
+    const bag = d.sortedBags.find((b) => b.id === bagId);
+    if (!bag || bag.status !== "open") return [d, null];
+    const wanted = leftover.filter((l) => l.pieces > 0);
+    const moving = wanted.reduce((s, l) => s + l.pieces, 0);
+    // Something must stay in the bag, and no more can come out than is in it.
+    if (moving === 0 || moving >= bag.pieceCount) return [d, null];
+    const inBag = d.countLines.map((l, index) => ({ l, index })).filter(({ l }) => l.bagId === bagId);
+    for (const w of wanted) {
+      if (inBag.filter(({ l }) => l.productId === w.productId).reduce((s, { l }) => s + l.quantity, 0) < w.pieces) return [d, null];
+    }
+
+    const seq = { ...d.seq };
+    const bagNumber = issueBagNumber(d.companies, bag.companyId, bag.mrp, env.today, seq);
+    const fresh: SortedBag = {
+      id: `sb-${bagNumber}`,
+      bagNumber,
+      companyId: bag.companyId,
+      mrp: bag.mrp,
+      pieceCount: 0,
+      isFull: false,
+      createdDate: env.today,
+      status: "open",
+      sourceCollectionIds: [],
+    };
+
+    const lines = [...d.countLines];
+    const added: CountLine[] = [];
+    let firstSource: string | undefined;
+    wanted.forEach((w) => {
+      let left = w.pieces;
+      // This pickup's pieces first, latest first; then everyone else's, latest first.
+      const order = inBag
+        .filter(({ l }) => l.productId === w.productId)
+        .sort((a, b) => Number(b.l.collectionId === fromSource) - Number(a.l.collectionId === fromSource) || b.index - a.index);
+      order.forEach(({ index }, k) => {
+        if (left <= 0) return;
+        const line = lines[index];
+        const take = Math.min(left, line.quantity);
+        firstSource = firstSource ?? line.collectionId;
+        if (take === line.quantity) lines[index] = { ...line, bagId: fresh.id };
+        else {
+          lines[index] = { ...line, quantity: line.quantity - take };
+          added.push({ ...line, id: `${line.id}~${env.stamp}${k}`, quantity: take, bagId: fresh.id });
+        }
+        left -= take;
+      });
+    });
+    fresh.openedFor = fromSource ?? firstSource;
+
+    const allLines = [...lines, ...added];
+    const sortedBags = refreshBags(
+      [...d.sortedBags.map((b) => (b.id === bagId ? tied(b, env) : b)), fresh],
+      allLines
+    );
+    return [{ ...d, seq, countLines: allLines, sortedBags }, sortedBags.find((b) => b.id === fresh.id) ?? null];
   },
 
   /**

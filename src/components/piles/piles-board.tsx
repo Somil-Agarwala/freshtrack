@@ -18,6 +18,7 @@ import { AgePill, BigButton, BigLink, CompanyTabs, ListHeader, Screen, ScreenBod
 import { Dialog } from "@/components/ui/dialog";
 import { Notice } from "@/components/ui/notice";
 import { BagNumber } from "@/components/count/bag-directions";
+import { TieSheet } from "./tie-sheet";
 
 /**
  * Bags in the godown, by company: the open bag of each MRP being filled as
@@ -29,13 +30,13 @@ export function PilesBoard() {
   const params = useSearchParams();
   const { can } = useSession();
   const { t, lang } = useLang();
-  const { companies, countLines, sortedBags, collections, distributors, products, closeOpenBags, tieBag } = useStore();
+  const { companies, countLines, sortedBags, collections, distributors, products, closeOpenBags } = useStore();
   const [confirmClose, setConfirmClose] = useState(false);
   const [openBag, setOpenBag] = useState<string | null>(null);
+  const [tying, setTying] = useState<string | null>(null);
   const [message, flash] = useFlash();
-  const tie = (bag: SortedBag) => {
-    if (tieBag(bag.id)) flash(t(`${bag.bagNumber} बँध गया — फैक्ट्री के लिए तैयार`, `${bag.bagNumber} tied — ready for the factory`));
-  };
+  const tie = (bag: SortedBag) => setTying(bag.id);
+  const tyingBag = sortedBags.find((b) => b.id === tying);
 
   const open = useMemo(() => openBags(sortedBags), [sortedBags]);
   const ready = useMemo(() => readyBags(sortedBags), [sortedBags]);
@@ -198,6 +199,22 @@ export function PilesBoard() {
       )}
 
       {sheetBag && <BagSheet bag={sheetBag} partyOf={partyOf} nameOf={nameOf} onClose={() => setOpenBag(null)} onTie={() => tie(sheetBag)} />}
+      {tyingBag && (
+        <TieSheet
+          bag={tyingBag}
+          nameOf={nameOf}
+          onClose={() => setTying(null)}
+          onTied={(moved) => {
+            flash(
+              moved
+                ? t(`${tyingBag.bagNumber} बँधा। बचा माल नए बैग ${moved.bagNumber} में डालें`, `${tyingBag.bagNumber} tied. Put what is left in new bag ${moved.bagNumber}`)
+                : t(`${tyingBag.bagNumber} बँध गया — फैक्ट्री के लिए तैयार`, `${tyingBag.bagNumber} tied — ready for the factory`)
+            );
+            // The new bag's number and contents, to write on the fresh bag.
+            if (moved) setOpenBag(moved.id);
+          }}
+        />
+      )}
       <Notice message={message} />
 
       <Dialog
