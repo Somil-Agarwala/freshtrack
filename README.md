@@ -61,22 +61,23 @@ Open http://localhost:3000.
 
 ## How bag packing works
 
-`src/lib/bag-packing.ts` holds the logic:
+Counting and filling are separate, as they are on the godown floor:
 
-- **Bags are kept apart by company and MRP.** Each company + MRP has one
-  open bag. Counted pieces go straight into it the moment a count is saved.
-- **No piece limit.** How many pieces make a full bag depends on the
-  product, so a manager ties a bag by hand when it is full ("Bag full —
-  tie it"). The next pieces of that MRP open a newly numbered bag. A bag
-  tied by mistake can be opened again while no other bag of that MRP is open.
-- **A bag can fill up mid-way.** Tying asks "did everything go in?". If not,
-  staff enter how many pieces of each item were left outside; the bag is
-  tied with what fitted and those pieces move to a new numbered bag of the
-  same MRP (the pickup in hand first, latest pieces first).
-- **Re-counts stay in their bag.** Pieces already in a tied bag stay there,
-  up to the corrected count; any change goes to the bag still being filled.
-- **Traceability.** Every bag knows its items, which pickups (parties) and
-  own-godown entries its pieces came from, and its claim value.
+1. **Count.** A counted pickup's pieces (and own-godown damage in pieces)
+   wait, sorted by company and MRP. Nothing goes into a bag by itself.
+2. **Fill a bag** (`/fill`). Staff put goods into the bag of one MRP and type
+   how many of each item went in. Shortcuts: "All N" for one item, "All
+   waiting goods", and "Just counted" (the pickup in hand). A new bag's
+   number is shown before it is filled, to write on it.
+3. **Tie** when the bag is full -- there is no piece limit. If goods of that
+   MRP are still waiting, the next bag's number appears at once.
+
+- Pieces are taken from the pickup in hand first, then the oldest waiting,
+  so each bag knows whose goods (party shares) and which items it holds.
+- A mistake while filling: "Take out" puts pieces back to waiting.
+- A re-count can only change what is still waiting; it can never go below
+  what was already put into bags for an item.
+- One item counted above 2,000 pieces asks for a second tap (typing slips).
 
 ## Project structure
 

@@ -75,6 +75,7 @@ export function showsBottomNav(pathname: string) {
   const task =
     pathname.startsWith("/pickup") ||
     pathname.startsWith("/direct") ||
+    pathname.startsWith("/fill") ||
     pathname.startsWith("/party-message") ||
     pathname === "/money" ||
     /^\/(count|send|collections|dispatches)\/.+/.test(pathname) ||

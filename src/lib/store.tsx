@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import * as seed from "./seed-data";
-import { peekCollectionNumbers } from "./bag-packing";
+import { issueBagNumber, peekCollectionNumbers } from "./bag-packing";
+import { today } from "./utils";
 import { emptyData, type AppData } from "./sync/app-data";
 import { CLOUD, CloudAuth, CloudTransport, adminRemoveLogin, adminSetLogin, type CloudSession } from "./sync/cloud";
 import { SyncEngine, type KV, type SyncStatus } from "./sync/engine";
@@ -49,26 +50,34 @@ interface StoreValue {
   addCountedPickup: (input: CollectionInput, lines: CountInput) => CollectionBag | null;
   /** What the next `count` collection numbers would be, without consuming them. */
   previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => string[];
+  /** The number the next new bag of a company + MRP would get, without taking it. */
+  previewBagNumber: (companyId: string, mrp: number) => string;
   /** Notes that the party was sent the WhatsApp summary of these pickup bags. */
   markPartyNotified: (ids: string[]) => void;
   /** Deletes pickups and takes their pieces back out of their bags. Not for goods already sent. */
   deleteCollections: (ids: string[]) => void;
   /**
-   * Saves a count and puts its pieces straight into numbered bags: the
-   * open bag of each MRP is topped up and a new numbered bag opened when one
-   * fills. Re-counting replaces the old pieces. Refused (false) once any of
-   * the bag's goods have gone to the factory.
+   * Saves a count. The pieces wait, sorted by MRP, until staff put them into
+   * a bag. A re-count only changes what is still waiting; refused (false) if
+   * it is lower than what has already been put into bags for an item.
    */
   saveCount: (collectionId: string, lines: CountInput) => boolean;
-  /** A manager ties a full bag by hand (no piece limit). False if it is not an open bag with pieces. */
-  tieBag: (bagId: string) => boolean;
+  /** Starts a new numbered bag for a company and MRP, or returns the open one. */
+  openBag: (companyId: string, mrp: number) => SortedBag;
   /**
-   * The bag filled before everything fitted: tie it with what went in, and
-   * move the pieces left outside (per item) into a new numbered bag of the
-   * same MRP. Returns the new bag, or null if refused.
+   * Staff put goods into the open bag of a company + MRP and say how many of
+   * each item; those pieces stop waiting. `from` (a pickup id or
+   * "godown:<entry>") is used first. Null if nothing was waiting.
    */
-  tieBagWithLeftover: (bagId: string, leftover: { productId: string; pieces: number }[], fromSource?: string) => SortedBag | null;
-  /** Opens a bag tied by mistake. False once sent, or while another bag of that MRP is open. */
+  fillBag: (companyId: string, mrp: number, items: { productId: string; pieces: number }[], from?: string) => { bag: SortedBag; added: number } | null;
+  /** A mistake while filling: pieces taken back out of an open bag. Returns how many came out. */
+  takeOutOfBag: (bagId: string, productId: string, pieces: number) => number;
+  /**
+   * A manager ties a full bag. If goods of that MRP are still waiting, the
+   * next numbered bag is opened at once. Null if not an open bag with pieces.
+   */
+  tieBag: (bagId: string) => { tied: SortedBag; next: SortedBag | null } | null;
+  /** Opens a bag tied by mistake. False once sent, or while another bag of that MRP has goods in it. */
   untieBag: (bagId: string) => boolean;
   /** Ties every open bag of a company at once, e.g. before a factory run. */
   closeOpenBags: (companyId: string) => SortedBag[];
@@ -240,9 +249,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       markPartyNotified: (ids: string[]) => op<void>("markPartyNotified", ids),
       deleteCollections: (ids: string[]) => op<void>("deleteCollections", ids),
       saveCount: (collectionId: string, lines: CountInput) => op<boolean>("saveCount", collectionId, lines),
-      tieBag: (bagId: string) => op<boolean>("tieBag", bagId),
-      tieBagWithLeftover: (bagId: string, leftover: { productId: string; pieces: number }[], fromSource?: string) =>
-        op<SortedBag | null>("tieBagWithLeftover", bagId, leftover, fromSource),
+      openBag: (companyId: string, mrp: number) => op<SortedBag>("openBag", companyId, mrp),
+      fillBag: (companyId: string, mrp: number, items: { productId: string; pieces: number }[], from?: string) =>
+        op<{ bag: SortedBag; added: number } | null>("fillBag", companyId, mrp, items, from),
+      takeOutOfBag: (bagId: string, productId: string, pieces: number) => op<number>("takeOutOfBag", bagId, productId, pieces),
+      tieBag: (bagId: string) => op<{ tied: SortedBag; next: SortedBag | null } | null>("tieBag", bagId),
       untieBag: (bagId: string) => op<boolean>("untieBag", bagId),
       closeOpenBags: (companyId: string) => op<SortedBag[]>("closeOpenBags", companyId),
       deleteSortedBags: (ids: string[]) => op<void>("deleteSortedBags", ids),
@@ -251,6 +262,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteDispatches: (ids: string[]) => op<void>("deleteDispatches", ids),
       addRecord: (record: Omit<DamageRecord, "id">) => op<DamageRecord>("addRecord", record),
       deleteRecords: (ids: string[]) => op<void>("deleteRecords", ids),
+      previewBagNumber: (companyId: string, mrp: number) => {
+        const data = engineRef.current.getState().view;
+        return issueBagNumber(data.companies, companyId, mrp, today(), { ...data.seq });
+      },
       previewCollectionNumbers: (companyId: string, collectedDate: string, count: number) => {
         const data = engineRef.current.getState().view;
         const code = data.companies.find((c) => c.id === companyId)?.code ?? "GEN";

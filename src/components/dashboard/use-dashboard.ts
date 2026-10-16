@@ -59,8 +59,10 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
     const uncountedValue = Math.round(uncountedEstimate(uncounted, countLines, collections) / 100) * 100;
     // Counted pieces sit in numbered bags still being filled until a manager ties them.
     const filling = openBags(sortedBags).filter((b) => inScope(b.companyId));
-    const loosePieces = filling.reduce((s, b) => s + b.pieceCount, 0);
-    const looseValue = sumValue(filling);
+    // Counted goods not yet tied: waiting to go into a bag, or in a bag still being filled.
+    const waiting = countLines.filter((l) => !l.bagId && inScope(l.companyId));
+    const loosePieces = filling.reduce((s, b) => s + b.pieceCount, 0) + waiting.reduce((s, l) => s + l.quantity, 0);
+    const looseValue = sumValue(filling) + waiting.reduce((s, l) => s + lineValue(l), 0);
     const ready = readyBags(sortedBags).filter((b) => inScope(b.companyId));
     const readyValue = sumValue(ready);
     const owed = awaitingPayment(disp);
@@ -70,7 +72,7 @@ export function useDashboard(companyId: string, period: Period, lang: Lang) {
 
     const stages = [
       { key: "count", href: "/count", value: uncountedValue, hi: "गिनती बाकी", en: "Not counted", count: `${uncounted.length} ${t("बैग", "bags")}`, note: t("Not counted (estimate)", "अंदाज़ा"), estimate: true },
-      { key: "pile", href: "/piles", value: looseValue, hi: "भर रहे बैग में", en: "In bags being filled", count: `${filling.length} ${t("बैग", "bags")} · ${num(loosePieces)} ${t("पीस", "pcs")}`, note: t("In bags being filled", "भर रहे बैग में"), estimate: false },
+      { key: "pile", href: "/piles", value: looseValue, hi: "गिना, बैग बँधना बाकी", en: "Counted, not yet tied", count: `${num(loosePieces)} ${t("पीस", "pcs")} · ${filling.length} ${t("खुले बैग", "open bags")}`, note: t("Counted, not yet tied", "गिना, बैग बँधना बाकी"), estimate: false },
       { key: "factory", href: "/send", value: readyValue, hi: "भेजने को तैयार", en: "Ready, not sent", count: `${ready.length} ${t("बैग", "bags")}`, note: t("Ready, not sent", "भेजने को तैयार"), estimate: false },
       { key: "pickup", href: "/money", value: owedValue, hi: "फैक्ट्री के पास", en: "With the factory", count: `${owed.length} ${t("गाड़ी", "runs")}`, note: t("Awaiting payment", "पैसा आना बाकी"), estimate: false },
     ] as const;

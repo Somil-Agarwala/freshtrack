@@ -54,6 +54,7 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
   // Once any of its goods have gone to the factory, the count is final.
   const sent = lines.some((l) => sortedBags.find((b) => b.id === l.bagId)?.status === "dispatched");
   const filling = (id: string) => sortedBags.find((b) => b.id === id)?.status === "open";
+  const waitingHere = lines.filter((l) => !l.bagId).reduce((s, l) => s + l.quantity, 0);
 
   const tied = sortedBags
     .map((sb) => ({ sb, pieces: bagContents(sb, countLines).find((c) => c.collectionId === bag.id)?.pieces ?? 0 }))
@@ -68,11 +69,15 @@ export function BagDetail({ collectionId }: { collectionId: string }) {
       detail: bag.countedDate ? `${fullDate(bag.countedDate, lang)} · ${num(pieces)} ${t("पीस", "pcs")}` : t(`${daysSince(bag.collectedDate)} दिन से इंतज़ार`, `waiting ${daysSince(bag.collectedDate)} days`),
     },
     {
-      done: tied.length > 0,
+      done: pieces > 0 && waitingHere === 0,
       title: t("नंबर वाले बैग में डाला", "Put into numbered bags"),
-      detail: tied.length
-        ? `${tied.length} ${t("बैग", "bags")}${tied.some((x) => filling(x.sb.id)) ? ` · ${tied.filter((x) => filling(x.sb.id)).length} ${t("अभी भर रहे", "still being filled")}` : ""}`
-        : "—",
+      detail:
+        [
+          tied.length ? `${tied.length} ${t("बैग", "bags")}${tied.some((x) => filling(x.sb.id)) ? ` · ${tied.filter((x) => filling(x.sb.id)).length} ${t("अभी भर रहे", "still being filled")}` : ""}` : "",
+          waitingHere ? t(`${num(waitingHere)} पीस बैग में डालना बाकी`, `${num(waitingHere)} pcs still to put in a bag`) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || "—",
     },
     { done: runs.length > 0, title: t("फैक्ट्री भेजा", "Sent to factory"), detail: runs.length ? runs.map((r) => r.dispatchNumber).join(", ") : "—" },
   ];

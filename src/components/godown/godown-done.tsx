@@ -2,30 +2,31 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCanSpeak } from "@/lib/device";
 import { inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
-import { CheckIcon, SpeakerIcon } from "@/components/ft/icons";
+import { MrpCircle } from "@/components/ft/brand";
+import { ArrowRightIcon, CheckIcon } from "@/components/ft/icons";
 import { BigLink, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
-import { BagDirections, bagCards, speakDirections } from "@/components/count/bag-directions";
 
 /**
- * Saved: what was recorded and -- for damage in our own godown -- which
- * numbered claim bag the pieces go into, then the quickest way to log the
- * next one.
+ * Saved: what was recorded and -- for damage in our own godown counted in
+ * pieces -- the way to put those pieces into the claim bag of their MRP,
+ * then the quickest way to log the next one.
  */
 export function GodownDone() {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const params = useSearchParams();
-  const speakable = useCanSpeak();
-  const { products, companies, countLines, sortedBags } = useStore();
+  const { products, companies, countLines } = useStore();
   const product = products.find((p) => p.id === params.get("product"));
   const company = companies.find((c) => c.id === params.get("company"));
   const recordId = params.get("record") ?? "";
   const again = new URLSearchParams({ company: params.get("company") ?? "", ...(params.get("source") ? { source: "party" } : {}) });
-  const nameOf = (id: string) => products.find((p) => p.id === id)?.name ?? "—";
-  const cards = recordId ? bagCards(`godown:${recordId}`, countLines.filter((l) => l.recordId === recordId), sortedBags) : [];
+  // Own-godown damage in pieces waits with the counted goods of its MRP.
+  const ownLines = countLines.filter((l) => l.recordId === recordId);
+  const own = ownLines.length
+    ? { mrp: ownLines[0].mrp, companyId: ownLines[0].companyId, pieces: ownLines.reduce((s, l) => s + l.quantity, 0), bagId: ownLines.every((l) => l.bagId) }
+    : null;
 
   return (
     <Screen>
@@ -46,24 +47,23 @@ export function GodownDone() {
           </p>
         </div>
 
-        {cards.length > 0 && (
-          <>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <h2 className="font-display text-[22px] font-extrabold leading-tight">{t("किस बैग में डालें", "Which bag it goes in")}</h2>
-              {speakable && (
-                <button
-                  type="button"
-                  onClick={() => speakDirections(cards, nameOf, lang)}
-                  aria-label={t("निर्देश सुनें", "Listen to instructions")}
-                  className="flex h-11 shrink-0 items-center gap-1.5 rounded-[14px] bg-pile-tint px-3 text-[15px] font-bold text-pile-soft"
-                >
-                  <SpeakerIcon size={20} />
-                  {t("सुनें", "Listen")}
-                </button>
-              )}
+        {own && (
+          <section className="flex w-full flex-col gap-3 rounded-[20px] border border-line bg-surface p-3.5">
+            <div className="flex items-center gap-3">
+              <MrpCircle mrp={own.mrp} size={48} />
+              <p className="min-w-0 flex-1 text-base leading-snug">
+                {own.bagId
+                  ? t("यह माल बैग में डाल दिया गया है", "These pieces are already in a bag")
+                  : t(`${num(own.pieces)} पीस ₹${own.mrp} के बाकी माल में जुड़ गए — अब बैग में डालें`, `${num(own.pieces)} pcs joined the ₹${own.mrp} goods waiting — now put them into a bag`)}
+              </p>
             </div>
-            <BagDirections cards={cards} company={company} nameOf={nameOf} source={`godown:${recordId}`} />
-          </>
+            {!own.bagId && (
+              <BigLink tone="pile" href={`/fill?company=${own.companyId}&mrp=${own.mrp}&from=godown:${recordId}`} className="h-14 text-lg">
+                {t(`₹${own.mrp} बैग में डालें`, `Put into ₹${own.mrp} bag`)}
+                <ArrowRightIcon />
+              </BigLink>
+            )}
+          </section>
         )}
       </ScreenBody>
       <ScreenFooter className="gap-2.5">

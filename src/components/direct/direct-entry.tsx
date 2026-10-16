@@ -15,6 +15,7 @@ import { ChevronRightIcon, ClipboardIcon, PlusIcon, SearchIcon } from "@/compone
 import { BigButton, CompanyTabs, ListHeader, Screen, ScreenBody, ScreenFooter, TaskHeader } from "@/components/ft/screen";
 import { NewItemSheet } from "@/components/count/count-screen";
 import { NewPartySheet } from "@/components/pickup/pickup-party";
+import { UNUSUAL_PIECES } from "@/lib/pipeline";
 
 /**
  * "Add counted goods": for goods a party sent that are already counted (a
@@ -198,7 +199,13 @@ function EntrySheet({ company, party }: { company: Company; party: Distributor }
     });
   };
 
+  // A very large number is usually a typing slip: ask once more.
+  const big = filled.filter((p) => qty[p.id] > UNUSUAL_PIECES);
+  const [sure, setSure] = useState(false);
+  useEffect(() => setSure(false), [qty]);
+
   function save() {
+    if (big.length && !sure) return setSure(true);
     const pickup = addCountedPickup(
       { companyId: company.id, distributorId: party.id, collectedDate: date || today() },
       filled.map((p) => ({ productId: p.id, mrp: p.mrp, quantity: qty[p.id] }))
@@ -296,6 +303,11 @@ function EntrySheet({ company, party }: { company: Company; party: Distributor }
       </ScreenBody>
 
       <ScreenFooter>
+        {sure && (
+          <p role="alert" className="rounded-2xl bg-danger-tint p-3 text-center text-[15px] font-bold text-danger-soft">
+            {t("बहुत ज़्यादा पीस", "Very large count")}: {big.map((p) => `${p.name} ${num(qty[p.id])}`).join(", ")} — {t("सही है तो फिर से दबाएँ", "press again if it is right")}
+          </p>
+        )}
         <div className="flex items-baseline justify-between px-1 text-[15px]">
           <span className="text-ink-dim">
             {t(`${filled.length} सामान`, `${filled.length} item${filled.length === 1 ? "" : "s"}`)} · <b className="text-ink">{num(pieces)}</b> {t("पीस", "pcs")}

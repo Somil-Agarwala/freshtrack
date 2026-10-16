@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { REASON_HI, REASON_LABELS } from "@/lib/constants";
 import { inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
@@ -13,6 +13,7 @@ import { CompanyAvatar, MrpChip, ProductPicture } from "@/components/ft/brand";
 import { CameraIcon, CheckIcon, InfoIcon, MinusIcon, PlusIcon } from "@/components/ft/icons";
 import { ChoiceGrid, Field, SearchBox, inputClass } from "@/components/ft/kit";
 import { BigButton, Note, Question, Screen, ScreenBody, ScreenFooter, StepHeader, softButton } from "@/components/ft/screen";
+import { UNUSUAL_PIECES } from "@/lib/pipeline";
 
 const UNITS = ["pieces", "packs", "cartons", "kg", "litres"];
 const WHO = ["Warehouse Team", "Delivery Partner", "Transporter"];
@@ -150,8 +151,8 @@ function Details({ companyId, productId, source }: { companyId: string; productI
   const [perCarton, setPerCarton] = useState("");
   const photoInput = useRef<HTMLInputElement>(null);
 
-  // Own-godown damage is claimed from the factory, so it goes into the
-  // numbered bags -- which needs it in pieces.
+  // Own-godown damage is claimed from the factory, so it is put into the
+  // numbered bags like counted goods -- which needs it in pieces.
   const own = source === "own_inventory";
   const inPieces = ["pieces", "packs", product.unit, `${product.unit}s`].includes(unit);
   const inCartons = unit === "cartons";
@@ -164,9 +165,14 @@ function Details({ companyId, productId, source }: { companyId: string; productI
   const whoOptions = [...(party ? [party.name] : []), ...WHO, "other"];
   const responsible = who === "other" ? customWho.trim() : who;
   const ready = !!reason && qty > 0 && (source === "own_inventory" || !!partyId) && !(own && inCartons && !pieces);
+  // A very large number is usually a typing slip (e.g. in pieces per carton): ask once more.
+  const [sure, setSure] = useState(false);
+  const unusual = pieces > UNUSUAL_PIECES || (!own && qty > UNUSUAL_PIECES);
+  useEffect(() => setSure(false), [pieces, qty]);
 
   function save() {
     if (!ready) return;
+    if (unusual && !sure) return setSure(true);
     const created = addRecord({
       companyId,
       date,
@@ -263,14 +269,14 @@ function Details({ companyId, productId, source }: { companyId: string; productI
             icon={<InfoIcon size={22} />}
             hi={
               pieces > 0
-                ? `${num(pieces)} पीस फैक्ट्री क्लेम के नंबर वाले बैग में जाएँगे — सेव करते ही बैग नंबर दिखेगा।`
+                ? `${num(pieces)} पीस फैक्ट्री क्लेम के लिए बाकी माल में जुड़ेंगे — फिर बैग भरते समय डालें।`
                 : inCartons
                   ? "कार्टन में पीस लिखें, तभी माल फैक्ट्री के बैग में जाएगा।"
                   : "किलो / लीटर वाला माल फैक्ट्री के बैग में नहीं जाता — पीस या पैक में लिखें।"
             }
             en={
               pieces > 0
-                ? `${num(pieces)} pieces go into the numbered factory claim bags — the bag number shows when you save.`
+                ? `${num(pieces)} pieces join the goods waiting for the factory claim bags — put them in when filling a bag.`
                 : inCartons
                   ? "Enter pieces per carton so the goods can go into a factory bag."
                   : "Goods in kg or litres do not go into factory bags — enter pieces or packs."
@@ -362,6 +368,11 @@ function Details({ companyId, productId, source }: { companyId: string; productI
       </ScreenBody>
 
       <ScreenFooter>
+        {sure && (
+          <p role="alert" className="rounded-2xl bg-danger-tint p-3 text-center text-[15px] font-bold text-danger-soft">
+            {t(`${num(pieces || qty)} पीस बहुत ज़्यादा है — जाँच लें, सही है तो फिर से दबाएँ`, `${num(pieces || qty)} pieces is a lot — check it, and press again if it is right`)}
+          </p>
+        )}
         <BigButton tone="godown" onClick={save} disabled={!ready}>
           <CheckIcon />
           {ready

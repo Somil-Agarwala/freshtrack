@@ -7,6 +7,7 @@ import { claimRateOf } from "@/lib/claim";
 import { useFlash, useVoiceInput } from "@/lib/device";
 import { inr, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
+import { UNUSUAL_PIECES } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -76,10 +77,15 @@ function ItemTiles({ bag, draft }: { bag: CollectionBag; draft: Record<string, n
   const keypad = (p: Product, edit = false) => `/count/${bag.id}?item=${p.id}${edit ? "&edit=1" : ""}`;
 
   function done() {
-    saveCount(
+    const ok = saveCount(
       bag.id,
       lines.map((p) => ({ productId: p.id, mrp: p.mrp, quantity: draft[p.id] }))
     );
+    if (!ok) {
+      // Pieces already put into a bag cannot be counted away.
+      flash(t("इसका कुछ माल बैग में डाला जा चुका है — उससे कम नहीं लिख सकते। पहले बैग से निकालें।", "Some of this was already put into a bag — the count cannot go below that. Take it out of the bag first."));
+      return;
+    }
     drafts.clear(bag.id);
     router.push(`/count/${bag.id}/sort`);
   }
@@ -266,9 +272,12 @@ function Keypad({ bag, product, current, edit, onSave }: { bag: CollectionBag; p
   const router = useRouter();
   const { t, sub } = useLang();
   const [entry, setEntry] = useState(edit ? String(current) : "0");
+  const [sure, setSure] = useState(false);
   const qty = Number(entry) || 0;
   const result = edit ? qty : current + qty;
   const back = `/count/${bag.id}`;
+  // A very large number is usually a slip of the finger: ask once more.
+  const unusual = result > UNUSUAL_PIECES;
 
   // A hardware keyboard works too (desktop, or a phone with a keypad).
   useEffect(() => {
@@ -283,6 +292,7 @@ function Keypad({ bag, product, current, edit, onSave }: { bag: CollectionBag; p
   });
 
   function press(key: string) {
+    setSure(false);
     setEntry((value) => {
       if (key === "C") return "0";
       if (key === "⌫") return value.length > 1 ? value.slice(0, -1) : "0";
@@ -302,6 +312,7 @@ function Keypad({ bag, product, current, edit, onSave }: { bag: CollectionBag; p
 
   function save() {
     if (!edit && qty === 0) return;
+    if (unusual && !sure) return setSure(true);
     onSave(result);
     close();
   }
@@ -338,6 +349,11 @@ function Keypad({ bag, product, current, edit, onSave }: { bag: CollectionBag; p
         {!edit && current > 0 && (
           <p className="-mt-1 text-center text-[15px] text-ink-dim">
             {t(`पहले ${num(current)} गिने · अब कुल ${num(result)}`, `${num(current)} counted before · ${num(result)} in all`)}
+          </p>
+        )}
+        {sure && (
+          <p role="alert" className="rounded-2xl bg-danger-tint p-3 text-center text-[15px] font-bold text-danger-soft">
+            {t(`${num(result)} पीस बहुत ज़्यादा है — सही है तो फिर से दबाएँ`, `${num(result)} pieces is a lot — press again if it is right`)}
           </p>
         )}
 

@@ -123,79 +123,19 @@ export function issueBagNumber(companies: Company[], companyId: string, mrp: num
   return `${codeFor(companies, companyId)}-M${mrp}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
-/** Open bags of one company + MRP, oldest number first: the order they are filled. */
-function openFor(bags: SortedBag[], companyId: string, mrp: number): SortedBag[] {
-  return bags
-    .filter((b) => b.status === "open" && b.companyId === companyId && b.mrp === mrp)
-    .sort((a, b) => a.bagNumber.localeCompare(b.bagNumber));
-}
-
-/**
- * Puts freshly counted pieces straight into numbered bags, the moment the
- * count is saved, so the counter can be told "these items go in this bag".
- *
- * Bags are kept apart by company and MRP. Each company + MRP has one open
- * bag being filled, with no piece limit: how many pieces make a full bag
- * depends on the product, so a manager ties the bag by hand when it is
- * full (tieBag). The next pieces of that MRP then open a newly numbered bag.
- *
- * `preferred` (company:mrp → bag id) sends a re-counted pickup's pieces back
- * into the bag they were already in, even if it has been tied since -- the
- * goods are physically in that bag; only the numbers are being corrected.
- *
- * Returns the placed lines (each with its bagId) and the whole bag list.
- * Piece counts are updated here; items, parties and value are filled in by
- * refreshBags, which works them out from the lines.
- */
-export function putIntoBags(
-  lines: CountLine[],
-  bags: SortedBag[],
-  companies: Company[],
-  dateStr: string,
-  sequence: SequenceState,
-  openedFor: string,
-  preferred?: Map<string, string>
-): { lines: CountLine[]; bags: SortedBag[] } {
-  const next = bags.map((b) => ({ ...b }));
-  const placed: CountLine[] = [];
-
-  lines.forEach((line) => {
-    const wanted = preferred?.get(`${line.companyId}:${line.mrp}`);
-    let bag = (wanted && next.find((b) => b.id === wanted && b.status !== "dispatched")) || openFor(next, line.companyId, line.mrp)[0];
-    if (!bag) {
-      const bagNumber = issueBagNumber(companies, line.companyId, line.mrp, dateStr, sequence);
-      bag = {
-        id: `sb-${bagNumber}`,
-        bagNumber,
-        companyId: line.companyId,
-        mrp: line.mrp,
-        pieceCount: 0,
-        isFull: false,
-        createdDate: dateStr,
-        status: "open",
-        sourceCollectionIds: [],
-        openedFor,
-      };
-      next.push(bag);
-    }
-    placed.push({ ...line, bagId: bag.id, packed: true });
-    bag.pieceCount += line.quantity;
-  });
-
-  return { lines: placed, bags: next };
-}
-
 /**
  * Works out each bag's pieces, items, parties and claim value from the
  * counted lines inside it. Run after any change to the lines.
  *
- * - A bag's status only changes by hand (tie / untie) or by sending it to
- *   the factory; pieces coming or going never tie or open a bag.
+ * Pieces get into a bag only when staff put them in and say how many
+ * (fillBag); a bag's status only changes by hand (tie / untie) or by
+ * sending it to the factory.
+ *
  * - Bags already sent to the factory are never touched.
- * - With `dropEmpty`, bags left with no pieces are removed. Their numbers
- *   are not reused.
+ * - An open bag stays even when empty (its number may be written on it); a
+ *   tied bag left with nothing in it is removed. Numbers are never reused.
  */
-export function refreshBags(bags: SortedBag[], lines: CountLine[], dropEmpty = true): SortedBag[] {
+export function refreshBags(bags: SortedBag[], lines: CountLine[]): SortedBag[] {
   const byBag = new Map<string, CountLine[]>();
   lines.forEach((l) => {
     if (!l.bagId) return;
@@ -206,7 +146,7 @@ export function refreshBags(bags: SortedBag[], lines: CountLine[], dropEmpty = t
     if (bag.status === "dispatched") return [bag];
     const inside = byBag.get(bag.id) ?? [];
     const pieceCount = inside.reduce((s, l) => s + l.quantity, 0);
-    if (pieceCount === 0 && dropEmpty) return [];
+    if (pieceCount === 0 && bag.status !== "open") return [];
 
     const byProduct = new Map<string, number>();
     const byCollection = new Map<string, { pieces: number; value: number }>();

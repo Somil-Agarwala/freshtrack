@@ -14,6 +14,9 @@ export const STALE_COUNT_DAYS = 7;
 export const STALE_CLAIM_DAYS = 45;
 /** Tied bags lying in the godown longer than this should go out. */
 export const STALE_READY_DAYS = 14;
+/** One item counted at more pieces than this is checked twice before saving (typing slips). */
+export const UNUSUAL_PIECES = 2000;
+
 /** An open bag still not tied after this many days is pointed out. */
 export const STALE_OPEN_DAYS = 10;
 
@@ -37,6 +40,37 @@ export function openBags(sortedBags: SortedBag[], companyId: string | "all" = "a
   return sortedBags
     .filter((b) => b.status === "open" && (companyId === "all" || b.companyId === companyId))
     .sort((a, b) => a.mrp - b.mrp || a.bagNumber.localeCompare(b.bagNumber));
+}
+
+/** Counted pieces not yet put into a bag (for a company, or all). */
+export function waitingLines(countLines: CountLine[], companyId: string | "all" = "all") {
+  return countLines.filter((l) => !l.bagId && (companyId === "all" || l.companyId === companyId));
+}
+
+export interface WaitingMrp {
+  mrp: number;
+  pieces: number;
+  value: number;
+  /** Item by item, most pieces first. */
+  items: { productId: string; pieces: number }[];
+}
+
+/** A company's counted goods waiting to be put into bags, MRP by MRP (₹ low to high). */
+export function waitingByMrp(countLines: CountLine[], companyId: string): WaitingMrp[] {
+  const byMrp = new Map<number, { pieces: number; value: number; items: Map<string, number> }>();
+  waitingLines(countLines, companyId).forEach((l) => {
+    const row = byMrp.get(l.mrp) ?? { pieces: 0, value: 0, items: new Map<string, number>() };
+    row.pieces += l.quantity;
+    row.value += lineValue(l);
+    row.items.set(l.productId, (row.items.get(l.productId) ?? 0) + l.quantity);
+    byMrp.set(l.mrp, row);
+  });
+  return Array.from(byMrp, ([mrp, r]) => ({
+    mrp,
+    pieces: r.pieces,
+    value: Math.round(r.value * 100) / 100,
+    items: Array.from(r.items, ([productId, pieces]) => ({ productId, pieces })).sort((a, b) => b.pieces - a.pieces),
+  })).sort((a, b) => a.mrp - b.mrp);
 }
 
 /** Bags holding goods that have gone to the factory: their counts are final. */

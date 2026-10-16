@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { longDate, lakh, weekdayEn } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
 import { useSession } from "@/lib/session";
-import { awaitingPayment, openBags, readyBags, staleUncounted, sumValue, STALE_COUNT_DAYS } from "@/lib/pipeline";
+import { awaitingPayment, openBags, readyBags, staleUncounted, sumValue, waitingLines, STALE_COUNT_DAYS } from "@/lib/pipeline";
 import { useStore } from "@/lib/store";
 import { today } from "@/lib/utils";
 import { OPEN_STATUSES } from "@/lib/constants";
@@ -18,13 +18,14 @@ export function HomeScreen() {
   const { t, lang } = useLang();
   const { user, can } = useSession();
   const userName = user?.name ?? "";
-  const { collections, sortedBags, dispatches, records } = useStore();
+  const { collections, sortedBags, dispatches, records, countLines } = useStore();
   const toReview = records.filter((r) => OPEN_STATUSES.includes(r.status)).length;
 
   const uncounted = collections.filter((c) => c.status === "uncounted").length;
   const stale = staleUncounted(collections).length;
   const toTell = partiesToMessage(collections).length;
   const filling = openBags(sortedBags);
+  const waitingPieces = waitingLines(countLines).reduce((s, l) => s + l.quantity, 0);
   const ready = readyBags(sortedBags);
   const owed = awaitingPayment(dispatches);
   const owedValue = owed.reduce((s, d) => s + d.claimedValue, 0);
@@ -140,14 +141,14 @@ export function HomeScreen() {
           step={3}
           tone="pile"
           icon={<LayersIcon size={28} />}
-          title={t("बैग भर रहे हैं", "Bags being filled")}
+          title={t("बैग में डालना बाकी", "To put into bags")}
           detail={
-            filling.length > 0
-              ? `${t("Bags being filled", "बैग भर रहे हैं")} · ${filling.reduce((s, b) => s + b.pieceCount, 0).toLocaleString("en-IN")} ${t("पीस", "pcs")}`
-              : t("कोई खुला बैग नहीं", "No open bag")
+            waitingPieces > 0 || filling.length > 0
+              ? `${t("गिना माल", "Counted goods")} · ${filling.length} ${t("खुले बैग", "open bags")}`
+              : t("सब माल बैग में", "Everything is in bags")
           }
-          value={String(filling.length)}
-          unit={t("बैग", "bags")}
+          value={waitingPieces.toLocaleString("en-IN")}
+          unit={t("पीस", "pcs")}
         />
         <StageCard
           href="/send"

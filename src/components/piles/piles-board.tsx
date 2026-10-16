@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useFlash } from "@/lib/device";
-import { daysSince, fullDate, inr, num } from "@/lib/format";
+import { daysSince, fullDate, num } from "@/lib/format";
 import { useLang } from "@/lib/i18n";
-import { STALE_OPEN_DAYS, bagContents, bagValue, openBags, readyBags } from "@/lib/pipeline";
+import { STALE_OPEN_DAYS, bagContents, openBags, readyBags, waitingByMrp, waitingLines } from "@/lib/pipeline";
 import { useSession } from "@/lib/session";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -17,31 +17,35 @@ import { Pill } from "@/components/ft/kit";
 import { AgePill, BigButton, BigLink, CompanyTabs, ListHeader, Screen, ScreenBody, ScreenFooter } from "@/components/ft/screen";
 import { Dialog } from "@/components/ui/dialog";
 import { Notice } from "@/components/ui/notice";
-import { BagNumber } from "@/components/count/bag-directions";
-import { TieSheet } from "./tie-sheet";
+import { BagNumber } from "@/components/ft/bag-number";
+import { TiedDialog } from "@/components/fill/tied-dialog";
 
 /**
- * Bags in the godown, by company: the open bag of each MRP being filled as
- * pickups are counted (no piece limit), with a button to tie it when the
- * manager sees it is full, and the tied bags waiting for the factory.
+ * Bags in the godown, by company. For each MRP: the counted goods still
+ * waiting to go into a bag, the bag being filled (with its number), "Put
+ * into bag" to record what went in, and "tie" when it is full. Then the
+ * tied bags waiting for the factory.
  */
 export function PilesBoard() {
   const router = useRouter();
   const params = useSearchParams();
   const { can } = useSession();
   const { t, lang } = useLang();
-  const { companies, countLines, sortedBags, collections, distributors, products, closeOpenBags } = useStore();
+  const { companies, countLines, sortedBags, collections, distributors, products, closeOpenBags, tieBag } = useStore();
   const [confirmClose, setConfirmClose] = useState(false);
   const [openBag, setOpenBag] = useState<string | null>(null);
-  const [tying, setTying] = useState<string | null>(null);
+  const [tiedNow, setTiedNow] = useState<{ tied: SortedBag; next: SortedBag | null } | null>(null);
   const [message, flash] = useFlash();
-  const tie = (bag: SortedBag) => setTying(bag.id);
-  const tyingBag = sortedBags.find((b) => b.id === tying);
+  const tie = (bag: SortedBag) => {
+    const res = tieBag(bag.id);
+    if (res) setTiedNow(res);
+  };
 
   const open = useMemo(() => openBags(sortedBags), [sortedBags]);
   const ready = useMemo(() => readyBags(sortedBags), [sortedBags]);
-  const withBags = companies.filter((c) => open.some((b) => b.companyId === c.id) || ready.some((b) => b.companyId === c.id));
-  const openCount = (id: string) => open.filter((b) => b.companyId === id).length;
+  const waitingIds = useMemo(() => new Set(waitingLines(countLines).map((l) => l.companyId)), [countLines]);
+  const withBags = companies.filter((c) => waitingIds.has(c.id) || open.some((b) => b.companyId === c.id) || ready.some((b) => b.companyId === c.id));
+  const openCount = (id: string) => open.filter((b) => b.companyId === id).length + (waitingIds.has(id) ? 1 : 0);
 
   const fallback = [...withBags].sort((a, b) => openCount(b.id) - openCount(a.id))[0]?.id ?? "";
   const requested = params.get("company");
@@ -52,6 +56,11 @@ export function PilesBoard() {
 
   const filling = open.filter((b) => b.companyId === companyId);
   const loose = filling.reduce((s, b) => s + b.pieceCount, 0);
+  const waiting = waitingByMrp(countLines, companyId);
+  // One row per MRP that has goods waiting or a bag being filled.
+  const rows = Array.from(new Set([...waiting.map((w) => w.mrp), ...filling.map((b) => b.mrp)]))
+    .sort((a, b) => a - b)
+    .map((mrp) => ({ mrp, waiting: waiting.find((w) => w.mrp === mrp), bag: filling.find((b) => b.mrp === mrp) }));
   const tiedHere = ready.filter((b) => b.companyId === companyId);
   const tiedByMrp = Array.from(new Set(tiedHere.map((b) => b.mrp)))
     .sort((a, b) => a - b)
@@ -62,7 +71,7 @@ export function PilesBoard() {
 
   return (
     <Screen width="wide">
-      <ListHeader tone="pile" icon={<LayersIcon size={26} />} title={t("गोदाम के बैग", "Bags in the godown")} subtitle={t("भर रहे बैग और बँधे बैग, MRP के हिसाब से", "Bags being filled and bags tied, by MRP")}>
+      <ListHeader tone="pile" icon={<LayersIcon size={26} />} title={t("गोदाम के बैग", "Bags in the godown")} subtitle={t("बाकी माल, भर रहे बैग और बँधे बैग — MRP के हिसाब से", "Goods waiting, bags being filled and tied — by MRP")}>
         {withBags.length > 0 && (
           <CompanyTabs
             companies={withBags}
@@ -82,55 +91,61 @@ export function PilesBoard() {
           </div>
         )}
 
-        {company && (
+        {company && rows.length > 0 && (
           <h2 className="mx-0.5 font-display text-[21px] font-extrabold">
-            {t("भर रहे बैग", "Bags being filled")} <span className="font-sans text-sm font-medium text-ink-faint">· {filling.length}</span>
+            {t("बैग भरना", "Filling bags")} <span className="font-sans text-sm font-medium text-ink-faint">· {t("MRP के हिसाब से", "by MRP")}</span>
           </h2>
         )}
-        {company && filling.length === 0 && (
-          <p className="rounded-2xl bg-surface p-3.5 text-[15px] text-ink-dim">{t("कोई खुला बैग नहीं — अगली गिनती से नया बैग खुलेगा", "No open bag — the next count opens a new one")}</p>
+        {company && rows.length === 0 && withBags.length > 0 && (
+          <p className="rounded-2xl bg-surface p-3.5 text-[15px] text-ink-dim">{t("कोई माल बैग में डालना बाकी नहीं", "No goods waiting to go into a bag")}</p>
         )}
 
         <div className="grid gap-2.5 lg:grid-cols-2 [&>*]:min-w-0">
-          {filling.map((bag) => {
-            const age = daysSince(bag.createdDate);
+          {rows.map(({ mrp, waiting: w, bag }) => {
+            const age = bag ? daysSince(bag.createdDate) : 0;
             return (
-              <div key={bag.id} className={cn("flex flex-col rounded-[20px] bg-surface", age >= STALE_OPEN_DAYS ? "border-2 border-count" : "border border-line")}>
-                <button type="button" onClick={() => setOpenBag(bag.id)} className="rounded-t-[20px] p-3.5 text-left transition-colors hover:bg-elevated">
-                  <div className="flex items-center gap-3">
-                    <MrpCircle mrp={bag.mrp} size={52} />
-                    <span className="min-w-0 flex-1">
-                      <BagNumber value={bag.bagNumber} className="block truncate text-[24px]" />
-                      <span className="mt-1 block text-[15px] font-bold text-ink-dim">
-                        {num(bag.pieceCount)} {t("पीस", "pcs")} · {inr(bagValue(bag))}
-                      </span>
+              <div key={mrp} className={cn("flex flex-col gap-3 rounded-[20px] bg-surface p-3.5", bag && age >= STALE_OPEN_DAYS ? "border-2 border-count" : "border border-line")}>
+                <button type="button" disabled={!bag} onClick={() => bag && setOpenBag(bag.id)} className="flex items-center gap-3 text-left">
+                  <MrpCircle mrp={mrp} size={52} />
+                  <span className="min-w-0 flex-1">
+                    {bag ? <BagNumber value={bag.bagNumber} className="block truncate text-[22px]" /> : <span className="block text-[17px] font-bold text-ink-dim">{t("नया बैग खुलेगा", "A new bag will open")}</span>}
+                    <span className="mt-1 block text-[15px] text-ink-dim">
+                      {t("बैग में", "In bag")} <b className="text-ink">{num(bag?.pieceCount ?? 0)}</b>
+                      {w ? (
+                        <>
+                          {" · "}
+                          <b className="text-count">{t(`${num(w.pieces)} बाकी`, `${num(w.pieces)} waiting`)}</b>
+                        </>
+                      ) : null}
                     </span>
-                    <AgePill days={age} warnAt={STALE_OPEN_DAYS} alarmAt={STALE_OPEN_DAYS * 2} />
-                  </div>
-                  <div className="mt-2.5 flex items-center justify-between gap-2 text-sm text-ink-dim">
+                  </span>
+                  {bag && <AgePill days={age} warnAt={STALE_OPEN_DAYS} alarmAt={STALE_OPEN_DAYS * 2} />}
+                </button>
+                {bag && (bag.items ?? []).length > 0 && (
+                  <p className="flex items-center gap-2 text-sm text-ink-dim">
                     {bag.own?.pieces ? (
                       <span className="flex shrink-0 items-center gap-1 rounded-full bg-godown-tint px-2 py-0.5 font-bold text-godown-soft">
                         <WarehouseIcon size={14} />
-                        {t(`गोदाम ${num(bag.own.pieces)}`, `Godown ${num(bag.own.pieces)}`)}
+                        {num(bag.own.pieces)}
                       </span>
                     ) : null}
                     <span className="min-w-0 flex-1 truncate">{(bag.items ?? []).map((i) => `${nameOf(i.productId)} ${num(i.pieces)}`).join(" · ")}</span>
-                    <span className="flex shrink-0 items-center gap-0.5 font-bold text-pile-soft">
-                      {t("पूरी जानकारी", "Details")}
-                      <ChevronRightIcon size={16} />
-                    </span>
-                  </div>
-                </button>
-                {can("tieSend") && (
-                  <button
-                    type="button"
-                    onClick={() => tie(bag)}
-                    className="m-3.5 mt-0 flex h-12 items-center justify-center gap-2 rounded-2xl bg-pile-tint text-base font-bold text-pile-soft transition-colors hover:brightness-125"
-                  >
-                    <SackIcon size={20} />
-                    {t("बैग भर गया — मुँह बाँधें", "Bag full — tie it")}
-                  </button>
+                    <ChevronRightIcon size={16} className="shrink-0" />
+                  </p>
                 )}
+                <div className={cn("grid gap-2", bag && bag.pieceCount > 0 && can("tieSend") ? "grid-cols-2" : "grid-cols-1")}>
+                  {can("pickupCount") && (
+                    <Link href={`/fill?company=${companyId}&mrp=${mrp}`} className="flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-pile text-base font-extrabold text-pile-ink hover:brightness-110">
+                      {t("बैग में डालें", "Put into bag")}
+                    </Link>
+                  )}
+                  {bag && bag.pieceCount > 0 && can("tieSend") && (
+                    <button type="button" onClick={() => tie(bag)} className="flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-pile-tint text-base font-bold text-pile-soft hover:brightness-125">
+                      <SackIcon size={18} />
+                      {t("भर गया — बाँधें", "Full — tie")}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -199,20 +214,16 @@ export function PilesBoard() {
       )}
 
       {sheetBag && <BagSheet bag={sheetBag} partyOf={partyOf} nameOf={nameOf} onClose={() => setOpenBag(null)} onTie={() => tie(sheetBag)} />}
-      {tyingBag && (
-        <TieSheet
-          bag={tyingBag}
-          nameOf={nameOf}
-          onClose={() => setTying(null)}
-          onTied={(moved) => {
-            flash(
-              moved
-                ? t(`${tyingBag.bagNumber} बँधा। बचा माल नए बैग ${moved.bagNumber} में डालें`, `${tyingBag.bagNumber} tied. Put what is left in new bag ${moved.bagNumber}`)
-                : t(`${tyingBag.bagNumber} बँध गया — फैक्ट्री के लिए तैयार`, `${tyingBag.bagNumber} tied — ready for the factory`)
-            );
-            // The new bag's number and contents, to write on the fresh bag.
-            if (moved) setOpenBag(moved.id);
+      {tiedNow && (
+        <TiedDialog
+          result={tiedNow}
+          onClose={() => setTiedNow(null)}
+          onNext={() => {
+            const mrp = tiedNow.tied.mrp;
+            setTiedNow(null);
+            router.push(`/fill?company=${companyId}&mrp=${mrp}`);
           }}
+          after={{ href: `/piles?company=${companyId}`, label: t("ठीक है", "OK") }}
         />
       )}
       <Notice message={message} />
@@ -251,7 +262,7 @@ function BagSheet({ bag, partyOf, nameOf, onClose, onTie }: { bag: SortedBag; pa
   const { can } = useSession();
   const { companies, collections, countLines, sortedBags, untieBag } = useStore();
   // Untying is refused while another bag of the same MRP is open.
-  const otherOpen = sortedBags.find((b) => b.id !== bag.id && b.status === "open" && b.companyId === bag.companyId && b.mrp === bag.mrp);
+  const otherOpen = sortedBags.find((b) => b.id !== bag.id && b.status === "open" && b.companyId === bag.companyId && b.mrp === bag.mrp && b.pieceCount > 0);
   const company = companies.find((c) => c.id === bag.companyId);
   const parts = bagContents(bag, countLines);
   const partyPieces = parts.reduce((s, p) => s + p.pieces, 0);
